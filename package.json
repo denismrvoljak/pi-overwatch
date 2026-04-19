@@ -1,14 +1,16 @@
 {
   "name": "pi-overwatch",
   "version": "0.1.0",
-  "description": "A tmux-aware dashboard package for monitoring background Pi agents",
-  "author": "Denis Mrvoljak",
+  "description": "Minimal TUI observability for Pi sessions, with tmux session awareness and cwd fallback",
   "type": "module",
   "keywords": [
     "pi-package",
     "pi",
+    "pi-extension",
     "overwatch",
     "dashboard",
+    "observability",
+    "tmux",
     "tui"
   ],
   "bin": {
