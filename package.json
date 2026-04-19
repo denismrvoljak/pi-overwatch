@@ -1,0 +1,44 @@
+{
+  "name": "pi-overwatch",
+  "version": "0.1.0",
+  "description": "A tmux-aware dashboard package for monitoring background Pi agents",
+  "author": "Denis Mrvoljak",
+  "type": "module",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "overwatch",
+    "dashboard",
+    "tui"
+  ],
+  "bin": {
+    "pi-overwatch": "./bin/pi-overwatch.js"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions"
+    ]
+  },
+  "files": [
+    "README.md",
+    "LICENSE",
+    "bin",
+    "extensions",
+    "config.example.json"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/denismrvoljak/pi-overwatch.git"
+  },
+  "homepage": "https://github.com/denismrvoljak/pi-overwatch",
+  "bugs": {
+    "url": "https://github.com/denismrvoljak/pi-overwatch/issues"
+  },
+  "license": "MIT"
+}
