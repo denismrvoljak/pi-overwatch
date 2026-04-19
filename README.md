@@ -24,6 +24,9 @@ You can run it anywhere in your terminal setup — inside a tmux pane, in a sepa
 - stale-session detection
 - simple local config in `~/.pi/overwatch/config.json`
 
+## Demo
+https://github.com/user-attachments/assets/fda9077b-3a37-4d1a-8adc-827d17dc7f53
+
 ## Install
 
 ### From npm
