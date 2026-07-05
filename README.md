@@ -14,6 +14,18 @@ There are already agent control-center tools and tmux dashboards out there, but 
 
 You can run it anywhere in your terminal setup — inside a tmux pane, in a separate terminal window, or in something like Ghostty.
 
+## Demo
+
+[![Watch the demo](https://img.youtube.com/vi/Y33AkG2fl8Q/hqdefault.jpg)](https://www.youtube.com/watch?v=Y33AkG2fl8Q)
+
+Watch the demo video on YouTube:
+
+- https://www.youtube.com/watch?v=Y33AkG2fl8Q
+
+## Screenshot
+
+![pi-overwatch dashboard](./assets/pi-overwatch.png)
+
 ## What it shows
 
 - current Pi session status at a glance
