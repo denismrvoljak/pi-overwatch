@@ -11,6 +11,7 @@ type AgentPhase = "thinking" | "tool" | "waiting" | "queueing";
 type TmuxInfo = {
   sessionName: string;
   windowIndex?: string;
+  windowName?: string;
   paneIndex?: string;
   paneId?: string;
   panePath?: string;
@@ -37,6 +38,11 @@ type AgentState = {
     steering: number;
     followUp: number;
   };
+};
+
+type TmuxNotifyConfig = {
+  notify: boolean;
+  bell: boolean;
 };
 
 const HEARTBEAT_MS = 5_000;
@@ -153,7 +159,7 @@ function getTmuxInfo(): TmuxInfo | undefined {
 
   try {
     const targetArgs = process.env.TMUX_PANE ? ["-t", process.env.TMUX_PANE] : [];
-    const format = "#{session_name}\t#{window_index}\t#{pane_index}\t#{pane_id}\t#{pane_current_path}";
+    const format = "#{session_name}\t#{window_index}\t#{window_name}\t#{pane_index}\t#{pane_id}\t#{pane_current_path}";
     const output = execFileSync("tmux", ["display-message", "-p", ...targetArgs, format], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
@@ -161,12 +167,13 @@ function getTmuxInfo(): TmuxInfo | undefined {
     }).trim();
 
     if (!output) return undefined;
-    const [sessionName, windowIndex, paneIndex, paneId, panePath] = output.split("\t");
+    const [sessionName, windowIndex, windowName, paneIndex, paneId, panePath] = output.split("\t");
     if (!sessionName) return undefined;
 
     return {
       sessionName,
       windowIndex: windowIndex || undefined,
+      windowName: windowName || undefined,
       paneIndex: paneIndex || undefined,
       paneId: paneId || process.env.TMUX_PANE || undefined,
       panePath: panePath || undefined,
@@ -180,13 +187,83 @@ function getIdentityLabel(state: AgentState): string {
   return state.tmux?.sessionName || state.sessionName || state.projectName || path.basename(state.cwd || state.agentId);
 }
 
+function readTmuxNotifyConfig(rootDir: string): TmuxNotifyConfig {
+  const defaults: TmuxNotifyConfig = { notify: true, bell: false };
+  try {
+    const userConfig = JSON.parse(fs.readFileSync(path.join(rootDir, "config.json"), "utf8"));
+    return { ...defaults, ...(userConfig?.tmux || {}) };
+  } catch {
+    return defaults;
+  }
+}
+
+function tmuxRun(args: string[]): string | undefined {
+  try {
+    return execFileSync("tmux", args, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      timeout: 1500,
+    }).trim();
+  } catch {
+    return undefined;
+  }
+}
+
+function tmuxPaneVisible(paneId: string): boolean {
+  const result = tmuxRun([
+    "display-message",
+    "-p",
+    "-t",
+    paneId,
+    "#{&&:#{session_attached},#{&&:#{window_active},#{pane_active}}}",
+  ]);
+  return result === "1";
+}
+
+function tmuxNotifyAllClients(message: string): void {
+  const clients = tmuxRun(["list-clients", "-F", "#{client_name}"]);
+  if (!clients) return;
+  for (const client of clients.split("\n").filter(Boolean)) {
+    tmuxRun(["display-message", "-c", client, message]);
+  }
+}
+
+function tmuxRefreshStatus(): void {
+  const clients = tmuxRun(["list-clients", "-F", "#{client_name}"]);
+  if (!clients) return;
+  for (const client of clients.split("\n").filter(Boolean)) {
+    tmuxRun(["refresh-client", "-S", "-t", client]);
+  }
+}
+
 export default function overwatch(pi: ExtensionAPI) {
   const rootDir = getRootDir();
   const agentsDir = path.join(rootDir, "agents");
   const eventsFile = path.join(rootDir, "events.jsonl");
+  const tmuxConfig = readTmuxNotifyConfig(rootDir);
 
   let state: AgentState | undefined;
   let heartbeat: NodeJS.Timeout | undefined;
+
+  function notifyTmuxFinished(): void {
+    if (!state?.tmux) return;
+    tmuxRefreshStatus();
+    if (!tmuxConfig.notify) return;
+    if (state.tmux.paneId && tmuxPaneVisible(state.tmux.paneId)) return;
+
+    const runtimeMs =
+      state.startedAt && state.finishedAt
+        ? new Date(state.finishedAt).getTime() - new Date(state.startedAt).getTime()
+        : undefined;
+    const runtime =
+      runtimeMs !== undefined && runtimeMs >= 0
+        ? ` (${Math.floor(runtimeMs / 60000)}m${Math.floor((runtimeMs % 60000) / 1000)}s)`
+        : "";
+    const icon = state.status === "error" ? "✕" : "✓";
+    const message = `pi ${icon} ${getIdentityLabel(state)}: ${state.status}${runtime}`.replace(/#/g, "##");
+    tmuxNotifyAllClients(message);
+    if (tmuxConfig.bell) process.stdout.write("\x07");
+  }
 
   function agentFilePath(): string | undefined {
     return state ? path.join(agentsDir, `${state.agentId}.json`) : undefined;
@@ -309,6 +386,7 @@ export default function overwatch(pi: ExtensionAPI) {
     touch(ctx);
     startHeartbeat(ctx);
     emitEvent("agent_start", { summary: state.summary });
+    if (state.tmux) tmuxRefreshStatus();
   });
 
   pi.on("turn_start", async (_event, ctx) => {
@@ -402,6 +480,7 @@ export default function overwatch(pi: ExtensionAPI) {
     touch(ctx);
     stopHeartbeat();
     emitEvent("agent_end", { status: state.status });
+    notifyTmuxFinished();
   });
 
   pi.on("session_shutdown", async (_event, ctx) => {

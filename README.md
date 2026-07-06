@@ -150,6 +150,70 @@ Supported values:
 - `true` — show headers
 - `false` — hide headers
 
+### `tmux`
+
+- `notify` — show a tmux `display-message` when an agent finishes or errors while its pane is not visible (default `true`)
+- `bell` — also ring the terminal bell on finish, so `monitor-bell` / your terminal can flag it (default `false`)
+
+## tmux integration
+
+### Status line
+
+`pi-overwatch statusline` prints a one-line, tmux-styled summary of all live Pi sessions, meant for embedding in the tmux status bar:
+
+```tmux
+set -g status 2
+set -g status-format[1] "#[align=left] #(pi-overwatch statusline)"
+```
+
+Flags:
+
+- `--plain` — no tmux style markup (for use outside tmux)
+- `--session NAME` — only show agents in that tmux session
+- `--max N` — max entries before collapsing to `+N` (default 6)
+- `--theme dark|light|auto` — color palette (default `auto`)
+
+#### Colors and light/dark themes
+
+With `auto` (the default), the theme is resolved from tmux options:
+
+1. `@pi_overwatch_theme` — set `tmux set -g @pi_overwatch_theme light` (or `dark`) to pin it
+2. `@powerkit_theme_variant` — `latte` maps to light, anything else to dark
+3. falls back to dark
+
+Pin a theme or override individual colors in the config:
+
+```json
+{
+  "statusline": {
+    "theme": "light",
+    "colors": {
+      "done": "#40a02b"
+    }
+  }
+}
+```
+
+Color keys: `working`, `stale`, `done`, `error`, `idle`, `dim`, `sep`.
+
+Finished and idle entries drop off after 10 minutes (`PI_OVERWATCH_STATUS_TTL_MS` to change).
+
+When two agents resolve to the same label (for example two Pi sessions in one tmux session), the statusline disambiguates them with the tmux window name and pane index: `personal:api.2 · personal:blog.1`. Unique labels stay unsuffixed.
+
+### Dashboard keybindings
+
+```tmux
+# floating pane (tmux >= 3.7, non-modal — keeps working underneath)
+bind o new-pane "pi-overwatch"
+
+# popup fallback (tmux >= 3.2, modal)
+bind O display-popup -E -w 85% -h 70% "pi-overwatch"
+```
+
+### Notifications
+
+When running inside tmux, the extension shows a `display-message` on every attached client when an agent finishes or errors — but only if the agent's pane is not currently visible. Disable with `"tmux": { "notify": false }` in the config.
+
 ## Controls
 
 - `q` quit

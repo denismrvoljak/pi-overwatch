@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -40,6 +41,7 @@ function readConfig() {
         ...defaults.dashboard,
         ...(userConfig?.dashboard || {}),
       },
+      statusline: userConfig?.statusline || {},
     };
   } catch {
     return defaults;
@@ -124,7 +126,8 @@ function getIdentityLabel(agent, identityMode) {
 
 function getIdentityMeta(agent) {
   if (agent.tmux?.sessionName) {
-    const pane = [agent.tmux.windowIndex, agent.tmux.paneIndex].filter(Boolean).join(".");
+    const win = agent.tmux.windowName || agent.tmux.windowIndex;
+    const pane = [win, agent.tmux.paneIndex].filter(Boolean).join(".");
     return pane ? `tmux ${pane}` : "tmux";
   }
   if (agent.sessionName) return "pi session";
@@ -362,6 +365,132 @@ function shutdown(code = 0) {
   process.exit(code);
 }
 
+const STATUS_THEMES = {
+  dark: {
+    working: "#89b4fa",
+    stale: "#f9e2af",
+    done: "#a6e3a1",
+    error: "#f38ba8",
+    idle: "#6c7086",
+    dim: "#6c7086",
+    sep: "#45475a",
+  },
+  light: {
+    working: "#1e66f5",
+    stale: "#df8e1d",
+    done: "#40a02b",
+    error: "#d20f39",
+    idle: "#8c8fa1",
+    dim: "#8c8fa1",
+    sep: "#bcc0cc",
+  },
+};
+
+function tmuxOption(name) {
+  try {
+    return execFileSync("tmux", ["show-options", "-gqv", name], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      timeout: 1500,
+    }).trim();
+  } catch {
+    return "";
+  }
+}
+
+function resolveStatusColors(config, themeArg) {
+  let theme = themeArg || config.statusline?.theme || "auto";
+  if (theme === "auto") {
+    const explicit = tmuxOption("@pi_overwatch_theme");
+    if (explicit === "light" || explicit === "dark") {
+      theme = explicit;
+    } else {
+      const variant = tmuxOption("@powerkit_theme_variant");
+      theme = variant === "latte" ? "light" : "dark";
+    }
+  }
+  const base = STATUS_THEMES[theme] || STATUS_THEMES.dark;
+  return { ...base, ...(config.statusline?.colors || {}) };
+}
+
+const STATUS_ICONS = {
+  working: "●",
+  stale: "!",
+  done: "✓",
+  error: "✕",
+  idle: "·",
+};
+
+function escapeTmux(text) {
+  return String(text).replace(/#/g, "##");
+}
+
+function parseStatuslineArgs(args) {
+  const options = { plain: false, session: undefined, max: 6, theme: undefined };
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--plain") options.plain = true;
+    else if (args[i] === "--session") options.session = args[++i];
+    else if (args[i] === "--max") options.max = Math.max(1, Number(args[++i]) || 6);
+    else if (args[i] === "--theme") options.theme = args[++i];
+  }
+  return options;
+}
+
+function printStatusline(args) {
+  const options = parseStatuslineArgs(args);
+  const style = (hex, text) => (options.plain ? text : `#[fg=${hex}]${text}#[default]`);
+  const now = Date.now();
+  const ttlMs = Number(process.env.PI_OVERWATCH_STATUS_TTL_MS || 10 * 60 * 1000);
+  const config = readConfig();
+  const colors = resolveStatusColors(config, options.theme);
+
+  const agents = readAgents().filter((agent) => {
+    if (options.session && agent.tmux?.sessionName !== options.session) return false;
+    if (agent.computedStatus === "working") return true;
+    if (agent.computedStatus === "stale") return agent.heartbeatAgeMs <= ttlMs;
+    const age = now - new Date(agent.updatedAt || 0).getTime();
+    return age <= ttlMs;
+  });
+
+  if (agents.length === 0) {
+    process.stdout.write(style(colors.dim, "○ pi idle") + "\n");
+    return;
+  }
+
+  const labelCounts = new Map();
+  for (const agent of agents) {
+    const label = getIdentityLabel(agent, config.dashboard.identity);
+    labelCounts.set(label, (labelCounts.get(label) || 0) + 1);
+  }
+
+  const segments = agents.slice(0, options.max).map((agent) => {
+    const status = agent.computedStatus;
+    const icon = STATUS_ICONS[status] || STATUS_ICONS.idle;
+    const hex = colors[status] || colors.idle;
+    let label = getIdentityLabel(agent, config.dashboard.identity);
+    if (labelCounts.get(label) > 1 && agent.tmux) {
+      const win = agent.tmux.windowName || agent.tmux.windowIndex;
+      const suffix = [win, agent.tmux.paneIndex].filter(Boolean).join(".");
+      if (suffix) label = `${label}:${suffix}`;
+    }
+    const identity = escapeTmux(label);
+
+    if (status === "working" || status === "stale") {
+      const doing = escapeTmux(agent.toolName || agent.phase || "");
+      const elapsed = agent.startedAt ? formatDuration(now - new Date(agent.startedAt).getTime()) : "";
+      const detail = [doing, elapsed].filter(Boolean).join(" ");
+      return `${style(hex, `${icon} ${identity}`)}${detail ? style(colors.dim, ` ${detail}`) : ""}`;
+    }
+    return style(hex, `${icon} ${identity}`);
+  });
+
+  const overflow = agents.length - options.max;
+  if (overflow > 0) segments.push(style(colors.dim, `+${overflow}`));
+
+  const separator = options.plain ? "  " : ` ${style(colors.sep, "·")} `;
+  process.stdout.write(segments.join(separator) + "\n");
+}
+
 function main() {
   ensureDir();
   clearScreen();
@@ -377,4 +506,9 @@ function main() {
   scheduleRender();
 }
 
-main();
+const [, , command, ...cliArgs] = process.argv;
+if (command === "statusline") {
+  printStatusline(cliArgs);
+} else {
+  main();
+}

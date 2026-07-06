@@ -2,5 +2,12 @@
   "dashboard": {
     "identity": "auto",
     "showColumnHeader": true
+  },
+  "tmux": {
+    "notify": true,
+    "bell": false
+  },
+  "statusline": {
+    "theme": "auto"
   }
 }
