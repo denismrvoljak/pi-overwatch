@@ -56,32 +56,23 @@ function restoreScreen() {
   process.stdout.write("\x1b[?25h\x1b[?1049l");
 }
 
-function color(code, text) {
-  return `\x1b[${code}m${text}\x1b[0m`;
+function hexToRgb(hex) {
+  const clean = hex.replace("#", "");
+  return {
+    r: parseInt(clean.slice(0, 2), 16),
+    g: parseInt(clean.slice(2, 4), 16),
+    b: parseInt(clean.slice(4, 6), 16),
+  };
 }
 
-function dim(text) {
-  return color("2", text);
+function fg(hex, text) {
+  const { r, g, b } = hexToRgb(hex);
+  return `\x1b[38;2;${r};${g};${b}m${text}\x1b[0m`;
 }
 
-function bold(text) {
-  return color("1", text);
-}
-
-function green(text) {
-  return color("32", text);
-}
-
-function yellow(text) {
-  return color("33", text);
-}
-
-function red(text) {
-  return color("31", text);
-}
-
-function cyan(text) {
-  return color("36", text);
+function boldFg(hex, text) {
+  const { r, g, b } = hexToRgb(hex);
+  return `\x1b[1;38;2;${r};${g};${b}m${text}\x1b[0m`;
 }
 
 function visible(text) {
@@ -196,20 +187,20 @@ function formatAge(ms) {
   return `${sec}s`;
 }
 
-function iconFor(status) {
+function iconFor(status, colors) {
   switch (status) {
     case "working":
-      return cyan("●");
+      return fg(colors.working, "●");
     case "done":
-      return green("✓");
+      return fg(colors.done, "✓");
     case "stale":
-      return yellow("!");
+      return fg(colors.stale, "!");
     case "error":
-      return red("✕");
+      return fg(colors.error, "✕");
     case "offline":
-      return dim("○");
+      return fg(colors.dim, "○");
     default:
-      return dim("·");
+      return fg(colors.dim, "·");
   }
 }
 
@@ -245,13 +236,14 @@ function render() {
   rows = readAgents();
 
   const config = readConfig();
+  const colors = resolveStatusColors(config);
   const identityMode = config.dashboard.identity;
   const width = process.stdout.columns || 120;
   const height = process.stdout.rows || 40;
   const now = Date.now();
   const header = [
-    bold("OVERWATCH") + dim(`  ${rootDir}`),
-    dim(`q quit  f working-only  a show-offline  r refresh  identity=${identityMode}`),
+    boldFg(colors.heading, "OVERWATCH") + fg(colors.dim, `  ${rootDir}`),
+    fg(colors.dim, `q quit  f working-only  a show-offline  r refresh  identity=${identityMode}`),
     "",
   ];
 
@@ -261,17 +253,17 @@ function render() {
   for (const group of orderedGroups) {
     const items = groups.get(group);
     if (!items || items.length === 0) continue;
-    body.push(bold(group.toUpperCase()));
+    body.push(boldFg(colors.heading, group.toUpperCase()));
     if (config.dashboard.showColumnHeader) {
       const headerCols = [
-        pad(dim("S"), 2),
-        pad(dim("TARGET"), 22),
-        pad(dim("WHERE"), 10),
-        pad(dim("DOING"), 12),
-        pad(dim("SUMMARY"), Math.max(10, width - 73)),
-        pad(dim("Q"), 5),
-        pad(dim("LAST"), 6),
-        pad(dim("RUN"), 8),
+        pad(fg(colors.dim, "S"), 2),
+        pad(fg(colors.dim, "TARGET"), 22),
+        pad(fg(colors.dim, "WHERE"), 10),
+        pad(fg(colors.dim, "DOING"), 12),
+        pad(fg(colors.dim, "SUMMARY"), Math.max(10, width - 73)),
+        pad(fg(colors.dim, "Q"), 5),
+        pad(fg(colors.dim, "LAST"), 6),
+        pad(fg(colors.dim, "RUN"), 8),
       ];
       body.push(truncate(headerCols.join(" "), width));
     }
@@ -286,8 +278,8 @@ function render() {
       const identity = getIdentityLabel(item, identityMode);
       const identityMeta = getIdentityMeta(item);
       const cols = [
-        pad(iconFor(item.computedStatus), 2),
-        pad(identity, 22),
+        pad(iconFor(item.computedStatus, colors), 2),
+        pad(fg(colors.text, identity), 22),
         pad(identityMeta, 10),
         pad(item.toolName || item.phase || "waiting", 12),
         pad(item.summary || "", Math.max(10, width - 73)),
@@ -301,17 +293,17 @@ function render() {
   }
 
   if (rows.length === 0) {
-    body.push(dim("No agent state files found yet."));
-    body.push(dim("Install the package in Pi, then start an agent session."));
+    body.push(fg(colors.dim, "No agent state files found yet."));
+    body.push(fg(colors.dim, "Install the package in Pi, then start an agent session."));
     body.push("");
   }
 
   const events = readEventTail();
-  body.push(bold("RECENT EVENTS"));
+  body.push(boldFg(colors.heading, "RECENT EVENTS"));
   for (const event of events) {
     const label = [event.tmuxSessionName || event.projectName, event.type].filter(Boolean).join(" · ");
     const summary = event.toolName || event.summary || event.error || "";
-    body.push(truncate(`${dim((event.ts || "").slice(11, 19))} ${label} ${dim(summary)}`, width));
+    body.push(truncate(`${fg(colors.dim, (event.ts || "").slice(11, 19))} ${label} ${fg(colors.dim, summary)}`, width));
   }
 
   const output = [...header, ...body].slice(0, height - 1);
@@ -365,26 +357,34 @@ function shutdown(code = 0) {
   process.exit(code);
 }
 
+// Rose Pine (https://rosepinetheme.com/) — Moon (dark) / Dawn (light).
 const STATUS_THEMES = {
   dark: {
-    working: "#89b4fa",
-    stale: "#f9e2af",
-    done: "#a6e3a1",
-    error: "#f38ba8",
-    idle: "#6c7086",
-    dim: "#6c7086",
-    sep: "#45475a",
+    text: "#e0def4",
+    heading: "#c4a7e7",
+    working: "#3e8fb0",
+    stale: "#f6c177",
+    done: "#9ccfd8",
+    error: "#eb6f92",
+    idle: "#908caa",
+    dim: "#908caa",
+    sep: "#6e6a86",
   },
   light: {
-    working: "#1e66f5",
-    stale: "#df8e1d",
-    done: "#40a02b",
-    error: "#d20f39",
-    idle: "#8c8fa1",
-    dim: "#8c8fa1",
-    sep: "#bcc0cc",
+    text: "#575279",
+    heading: "#907aa9",
+    working: "#286983",
+    stale: "#ea9d34",
+    done: "#56949f",
+    error: "#b4637a",
+    idle: "#797593",
+    dim: "#797593",
+    sep: "#9893a5",
   },
 };
+
+// Known powerkit variant names, keyed by whether they render on a light background.
+const LIGHT_POWERKIT_VARIANTS = new Set(["latte", "dawn"]);
 
 function tmuxOption(name) {
   try {
@@ -398,6 +398,15 @@ function tmuxOption(name) {
   }
 }
 
+function readSharedThemeMode() {
+  try {
+    const raw = fs.readFileSync(path.join(os.homedir(), ".config", "theme-mode"), "utf8").trim();
+    return raw === "light" || raw === "dark" ? raw : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function resolveStatusColors(config, themeArg) {
   let theme = themeArg || config.statusline?.theme || "auto";
   if (theme === "auto") {
@@ -405,8 +414,13 @@ function resolveStatusColors(config, themeArg) {
     if (explicit === "light" || explicit === "dark") {
       theme = explicit;
     } else {
-      const variant = tmuxOption("@powerkit_theme_variant");
-      theme = variant === "latte" ? "light" : "dark";
+      const shared = readSharedThemeMode();
+      if (shared) {
+        theme = shared;
+      } else {
+        const variant = tmuxOption("@powerkit_theme_variant");
+        theme = LIGHT_POWERKIT_VARIANTS.has(variant) ? "light" : "dark";
+      }
     }
   }
   const base = STATUS_THEMES[theme] || STATUS_THEMES.dark;
