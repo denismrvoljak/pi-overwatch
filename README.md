@@ -4,13 +4,15 @@
 pi install npm:pi-overwatch
 ```
 
-Minimal observability for your Pi sessions.
+Minimal observability for your Pi and Claude Code sessions.
 
 I built `pi-overwatch` because I wanted a simple way to see what my Pi sessions were doing while multitasking.
 
-I use tmux with a "one session per project" setup, so Overwatch uses the tmux session name as the main target label when Pi is running inside tmux. If you're not using tmux, it falls back to the directory where you launched Pi.
+I use tmux with a "one session per project" setup, so Overwatch uses the tmux session name as the main target label when the agent is running inside tmux. If you're not using tmux, it falls back to the directory where you launched it.
 
-There are already agent control-center tools and tmux dashboards out there, but I wanted something smaller and calmer: a lightweight TUI that gives me live status for Pi instances without changing how I work.
+It started as a Pi tool and now tracks Claude Code the same way. The dashboard doesn't care what wrote a state file, so both show up in one view, one status line, one keybinding — see [Claude Code](#claude-code) to switch the hooks on.
+
+There are already agent control-center tools and tmux dashboards out there, but I wanted something smaller and calmer: a lightweight TUI that gives me live status for my agents without changing how I work.
 
 You can run it anywhere in your terminal setup — inside a tmux pane, in a separate terminal window, or in something like Ghostty.
 
@@ -28,10 +30,11 @@ Watch the demo video on YouTube:
 
 ## What it shows
 
-- current Pi session status at a glance
+- current Pi and Claude Code session status at a glance
 - tmux-session-aware target labels
 - cwd fallback when tmux is not available
 - current phase or tool activity
+- which sessions are blocked waiting on you
 - queue counts, heartbeat age, and runtime
 - stale-session detection
 - simple local config in `~/.pi/overwatch/config.json`
@@ -86,16 +89,16 @@ Overwatch is tmux-aware, not tmux-dependent.
 Target resolution is:
 
 1. tmux session name
-2. Pi session name
+2. agent session name
 3. cwd basename
 
-That means if you use a tmux workflow like "one tmux session per project", the dashboard naturally follows that naming. If you are not using tmux, it still works fine and identifies sessions from the directory where Pi was launched.
+That means if you use a tmux workflow like "one tmux session per project", the dashboard naturally follows that naming. If you are not using tmux, it still works fine and identifies sessions from the directory where the agent was launched.
 
 ## Dashboard columns
 
 - `S` — status icon
 - `SRC` — which agent produced the row (`π` Pi, `✳` Claude Code)
-- `TARGET` — main identity for the Pi instance
+- `TARGET` — main identity for the agent
 - `WHERE` — source context, usually tmux pane info like `tmux 1.1`
 - `DOING` — current phase or tool
 - `SUMMARY` — short activity summary
@@ -189,7 +192,7 @@ Example:
 
 Supported values:
 
-- `"auto"` — tmux session name, then Pi session name, then cwd basename
+- `"auto"` — tmux session name, then agent session name, then cwd basename
 - `"tmux"` — prefer tmux session name
 - `"cwd"` — show cwd basename only
 - `"both"` — show tmux session name plus cwd basename when they differ, for example `api · my-monorepo`
@@ -213,7 +216,7 @@ Supported values:
 
 ### Status line
 
-`pi-overwatch statusline` prints a one-line, tmux-styled summary of all live Pi sessions, meant for embedding in the tmux status bar:
+`pi-overwatch statusline` prints a one-line, tmux-styled summary of all live sessions, meant for embedding in the tmux status bar:
 
 ```tmux
 set -g status 2
@@ -310,7 +313,7 @@ export PI_OVERWATCH_STALE_MS=30000
 
 ## Pi command
 
-The extension also registers:
+The Pi extension also registers:
 
 ```text
 /overwatch
@@ -337,8 +340,9 @@ pi-overwatch/
 
 ## Notes
 
-- best results come from launching Pi inside the tmux pane you want associated with the row
+- best results come from launching the agent inside the tmux pane you want associated with the row
 - Overwatch does not rename tmux sessions or take over your workspace
 - it is intentionally minimal and focused on observability
 - Pi loads the extension directly from TypeScript
+- Claude Code drives state from hooks, so there is no process to keep running
 - there is no build step
