@@ -130,8 +130,18 @@ function getIdentityMeta(agent) {
     const pane = [win, agent.tmux.paneIndex].filter(Boolean).join(".");
     return pane ? `tmux ${pane}` : "tmux";
   }
-  if (agent.sessionName) return "pi session";
+  if (agent.sessionName) return isClaudeCode(agent) ? "cc session" : "pi session";
   return agent.cwd || "cwd";
+}
+
+function isClaudeCode(agent) {
+  return agent.source === "claude-code";
+}
+
+// Agents from different tools can share a tmux session, so the row has to say
+// which one it is.
+function sourceGlyph(agent) {
+  return isClaudeCode(agent) ? "✳" : "π";
 }
 
 function readAgents() {
@@ -145,7 +155,18 @@ function readAgents() {
         const fullPath = path.join(agentsDir, file);
         const state = JSON.parse(fs.readFileSync(fullPath, "utf8"));
         const heartbeatAgeMs = state.lastHeartbeatAt ? now - new Date(state.lastHeartbeatAt).getTime() : Infinity;
-        const computedStatus = state.status === "working" && heartbeatAgeMs > staleAfterMs ? "stale" : state.status;
+        // Producers without a heartbeat process (Claude Code hooks) declare
+        // their own stale window, otherwise a long tool call reads as stale.
+        const staleMs = Number(state.staleMs) > 0 ? Number(state.staleMs) : staleAfterMs;
+        // An agent waiting on a human isn't stale — it is correctly reporting
+        // that it has nothing to report. Only silence while it claims to be
+        // doing something counts.
+        const canGoStale = state.status === "working" && !state.blocked && state.phase !== "waiting";
+        const computedStatus = state.blocked
+          ? "blocked"
+          : canGoStale && heartbeatAgeMs > staleMs
+            ? "stale"
+            : state.status;
         return {
           ...state,
           file: fullPath,
@@ -169,9 +190,13 @@ function readAgents() {
       }
     })
     .filter((agent) => (showOffline ? true : agent.computedStatus !== "offline"))
-    .filter((agent) => (workingOnly ? agent.computedStatus === "working" || agent.computedStatus === "stale" : true))
+    .filter((agent) =>
+      workingOnly
+        ? ["working", "stale", "blocked"].includes(agent.computedStatus)
+        : true,
+    )
     .sort((a, b) => {
-      const order = { working: 0, stale: 1, done: 2, idle: 3, error: 4, offline: 5 };
+      const order = { blocked: 0, working: 1, stale: 2, done: 3, idle: 4, error: 5, offline: 6 };
       const left = order[a.computedStatus] ?? 99;
       const right = order[b.computedStatus] ?? 99;
       if (left !== right) return left - right;
@@ -200,6 +225,8 @@ function iconFor(status) {
   switch (status) {
     case "working":
       return cyan("●");
+    case "blocked":
+      return yellow("⏸");
     case "done":
       return green("✓");
     case "stale":
@@ -257,7 +284,7 @@ function render() {
 
   const body = [];
   const groups = groupRows(rows);
-  const orderedGroups = ["working", "stale", "done", "idle", "error", "offline"];
+  const orderedGroups = ["blocked", "working", "stale", "done", "idle", "error", "offline"];
   for (const group of orderedGroups) {
     const items = groups.get(group);
     if (!items || items.length === 0) continue;
@@ -265,10 +292,11 @@ function render() {
     if (config.dashboard.showColumnHeader) {
       const headerCols = [
         pad(dim("S"), 2),
+        pad(dim("SRC"), 3),
         pad(dim("TARGET"), 22),
         pad(dim("WHERE"), 10),
         pad(dim("DOING"), 12),
-        pad(dim("SUMMARY"), Math.max(10, width - 73)),
+        pad(dim("SUMMARY"), Math.max(10, width - 76)),
         pad(dim("Q"), 5),
         pad(dim("LAST"), 6),
         pad(dim("RUN"), 8),
@@ -277,7 +305,7 @@ function render() {
     }
     for (const item of items) {
       const startedAt = item.startedAt ? new Date(item.startedAt).getTime() : now;
-      const elapsed = item.computedStatus === "working" || item.computedStatus === "stale"
+      const elapsed = ["working", "stale", "blocked"].includes(item.computedStatus)
         ? formatDuration(now - startedAt)
         : item.finishedAt && item.startedAt
           ? formatDuration(new Date(item.finishedAt).getTime() - new Date(item.startedAt).getTime())
@@ -287,10 +315,11 @@ function render() {
       const identityMeta = getIdentityMeta(item);
       const cols = [
         pad(iconFor(item.computedStatus), 2),
+        pad(dim(sourceGlyph(item)), 3),
         pad(identity, 22),
         pad(identityMeta, 10),
         pad(item.toolName || item.phase || "waiting", 12),
-        pad(item.summary || "", Math.max(10, width - 73)),
+        pad(item.summary || "", Math.max(10, width - 76)),
         pad(queue, 5),
         pad(formatAge(item.heartbeatAgeMs), 6),
         pad(elapsed, 8),
@@ -369,6 +398,7 @@ const STATUS_THEMES = {
   dark: {
     working: "#89b4fa",
     stale: "#f9e2af",
+    blocked: "#fab387",
     done: "#a6e3a1",
     error: "#f38ba8",
     idle: "#6c7086",
@@ -378,6 +408,7 @@ const STATUS_THEMES = {
   light: {
     working: "#1e66f5",
     stale: "#df8e1d",
+    blocked: "#fe640b",
     done: "#40a02b",
     error: "#d20f39",
     idle: "#8c8fa1",
@@ -415,6 +446,7 @@ function resolveStatusColors(config, themeArg) {
 
 const STATUS_ICONS = {
   working: "●",
+  blocked: "⏸",
   stale: "!",
   done: "✓",
   error: "✕",
@@ -426,9 +458,11 @@ function escapeTmux(text) {
 }
 
 function parseStatuslineArgs(args) {
-  const options = { plain: false, session: undefined, max: 6, theme: undefined };
+  const options = { plain: false, session: undefined, max: 6, theme: undefined, source: undefined, showSource: undefined };
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--plain") options.plain = true;
+    else if (args[i] === "--no-source") options.showSource = false;
+    else if (args[i] === "--source") options.source = args[++i];
     else if (args[i] === "--session") options.session = args[++i];
     else if (args[i] === "--max") options.max = Math.max(1, Number(args[++i]) || 6);
     else if (args[i] === "--theme") options.theme = args[++i];
@@ -444,16 +478,19 @@ function printStatusline(args) {
   const config = readConfig();
   const colors = resolveStatusColors(config, options.theme);
 
+  const showSource = options.showSource ?? config.statusline?.showSource ?? true;
+
   const agents = readAgents().filter((agent) => {
     if (options.session && agent.tmux?.sessionName !== options.session) return false;
-    if (agent.computedStatus === "working") return true;
+    if (options.source && (agent.source || "pi") !== options.source) return false;
+    if (agent.computedStatus === "working" || agent.computedStatus === "blocked") return true;
     if (agent.computedStatus === "stale") return agent.heartbeatAgeMs <= ttlMs;
     const age = now - new Date(agent.updatedAt || 0).getTime();
     return age <= ttlMs;
   });
 
   if (agents.length === 0) {
-    process.stdout.write(style(colors.dim, "○ pi idle") + "\n");
+    process.stdout.write(style(colors.dim, "○ idle") + "\n");
     return;
   }
 
@@ -474,14 +511,15 @@ function printStatusline(args) {
       if (suffix) label = `${label}:${suffix}`;
     }
     const identity = escapeTmux(label);
+    const src = showSource ? `${style(colors.dim, sourceGlyph(agent))} ` : "";
 
-    if (status === "working" || status === "stale") {
-      const doing = escapeTmux(agent.toolName || agent.phase || "");
+    if (status === "working" || status === "stale" || status === "blocked") {
+      const doing = status === "blocked" ? "" : escapeTmux(agent.toolName || agent.phase || "");
       const elapsed = agent.startedAt ? formatDuration(now - new Date(agent.startedAt).getTime()) : "";
       const detail = [doing, elapsed].filter(Boolean).join(" ");
-      return `${style(hex, `${icon} ${identity}`)}${detail ? style(colors.dim, ` ${detail}`) : ""}`;
+      return `${src}${style(hex, `${icon} ${identity}`)}${detail ? style(colors.dim, ` ${detail}`) : ""}`;
     }
-    return style(hex, `${icon} ${identity}`);
+    return `${src}${style(hex, `${icon} ${identity}`)}`;
   });
 
   const overflow = agents.length - options.max;
@@ -509,6 +547,17 @@ function main() {
 const [, , command, ...cliArgs] = process.argv;
 if (command === "statusline") {
   printStatusline(cliArgs);
+} else if (command === "claude-hook") {
+  // Never fail the caller: a broken hook must not break a Claude Code session.
+  try {
+    const { runClaudeHook } = await import("../hooks/claude-code.js");
+    runClaudeHook(cliArgs);
+  } catch {
+    // intentionally silent
+  }
+} else if (command === "install-claude-hooks") {
+  const { installClaudeHooks } = await import("../hooks/install.js");
+  installClaudeHooks(cliArgs);
 } else {
   main();
 }

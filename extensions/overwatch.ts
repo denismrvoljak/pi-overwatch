@@ -19,6 +19,7 @@ type TmuxInfo = {
 
 type AgentState = {
   agentId: string;
+  source: "pi";
   pid: number;
   hostname: string;
   projectName: string;
@@ -353,6 +354,7 @@ export default function overwatch(pi: ExtensionAPI) {
 
     state = {
       agentId,
+      source: "pi",
       pid: process.pid,
       hostname: os.hostname(),
       projectName,

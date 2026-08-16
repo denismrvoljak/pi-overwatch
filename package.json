@@ -26,6 +26,7 @@
     "LICENSE",
     "bin",
     "extensions",
+    "hooks",
     "config.example.json"
   ],
   "engines": {
