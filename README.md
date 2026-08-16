@@ -4,15 +4,20 @@
 pi install npm:pi-overwatch
 ```
 
-Minimal observability for your Pi and Claude Code sessions.
+Minimal observability for your coding harnesses.
 
-I built `pi-overwatch` because I wanted a simple way to see what my Pi sessions were doing while multitasking.
+I built `pi-overwatch` because I wanted a simple way to see what my coding sessions were doing while multitasking.
 
 I use tmux with a "one session per project" setup, so Overwatch uses the tmux session name as the main target label when the agent is running inside tmux. If you're not using tmux, it falls back to the directory where you launched it.
 
-It started as a Pi tool and now tracks Claude Code the same way. The dashboard doesn't care what wrote a state file, so both show up in one view, one status line, one keybinding — see [Claude Code](#claude-code) to switch the hooks on.
+Supported harnesses:
 
-There are already agent control-center tools and tmux dashboards out there, but I wanted something smaller and calmer: a lightweight TUI that gives me live status for my agents without changing how I work.
+- **Pi** — installed as an extension
+- **Claude Code** — installed as hooks, see [Claude Code](#claude-code)
+
+The dashboard doesn't care which one wrote a state file, so they share one view, one status line, and one keybinding.
+
+There are already agent control-center tools and tmux dashboards out there, but I wanted something smaller and calmer: a lightweight TUI that gives me live status for my harnesses without changing how I work.
 
 You can run it anywhere in your terminal setup — inside a tmux pane, in a separate terminal window, or in something like Ghostty.
 
@@ -30,7 +35,7 @@ Watch the demo video on YouTube:
 
 ## What it shows
 
-- current Pi and Claude Code session status at a glance
+- current session status at a glance, whichever harness it is
 - tmux-session-aware target labels
 - cwd fallback when tmux is not available
 - current phase or tool activity
