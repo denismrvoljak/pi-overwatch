@@ -1,6 +1,6 @@
 {
   "name": "pi-overwatch",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Minimal TUI observability for Pi sessions, with tmux session awareness and cwd fallback",
   "type": "module",
   "keywords": [
