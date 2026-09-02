@@ -196,7 +196,7 @@ Pin a theme or override individual colors in the config:
 
 Color keys: `working`, `stale`, `done`, `error`, `idle`, `dim`, `sep`.
 
-Finished and idle entries drop off after 10 minutes (`PI_OVERWATCH_STATUS_TTL_MS` to change).
+Live Pi sessions keep heartbeating while idle, so they remain visible until the process exits. The dashboard hides expired state files by default; use `a` to inspect them. The statusline drops finished entries after 10 minutes (`PI_OVERWATCH_STATUS_TTL_MS` to change), while still-live idle sessions remain visible because their heartbeat stays fresh.
 
 When two agents resolve to the same label (for example two Pi sessions in one tmux session), the statusline disambiguates them with the tmux window name and pane index: `personal:api.2 · personal:blog.1`. Unique labels stay unsuffixed.
 

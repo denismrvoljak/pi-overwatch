@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import readline from "node:readline";
+import { pathToFileURL } from "node:url";
 
 const rootDir = process.env.PI_OVERWATCH_DIR || path.join(os.homedir(), ".pi", "overwatch");
 const agentsDir = path.join(rootDir, "agents");
@@ -13,6 +14,7 @@ const eventsFile = path.join(rootDir, "events.jsonl");
 const configFile = path.join(rootDir, "config.json");
 const refreshMs = Number(process.env.PI_OVERWATCH_REFRESH_MS || 1000);
 const staleAfterMs = Number(process.env.PI_OVERWATCH_STALE_MS || 30000);
+const statusTtlMs = Number(process.env.PI_OVERWATCH_STATUS_TTL_MS || 10 * 60 * 1000);
 
 let showOffline = false;
 let workingOnly = false;
@@ -125,10 +127,12 @@ function getIdentityMeta(agent) {
   return agent.cwd || "cwd";
 }
 
-function readAgents() {
+export function readAgents(options = {}) {
   ensureDir();
   const files = fs.readdirSync(agentsDir).filter((file) => file.endsWith(".json"));
   const now = Date.now();
+  const includeOffline = options.showOffline ?? showOffline;
+  const includeExpired = options.includeExpired ?? includeOffline;
 
   return files
     .map((file) => {
@@ -136,12 +140,14 @@ function readAgents() {
         const fullPath = path.join(agentsDir, file);
         const state = JSON.parse(fs.readFileSync(fullPath, "utf8"));
         const heartbeatAgeMs = state.lastHeartbeatAt ? now - new Date(state.lastHeartbeatAt).getTime() : Infinity;
-        const computedStatus = state.status === "working" && heartbeatAgeMs > staleAfterMs ? "stale" : state.status;
+        const heartbeatExpired = heartbeatAgeMs > staleAfterMs;
+        const computedStatus = state.status === "working" && heartbeatExpired ? "stale" : state.status;
         return {
           ...state,
           file: fullPath,
           computedStatus,
           heartbeatAgeMs,
+          heartbeatExpired,
         };
       } catch (error) {
         return {
@@ -156,10 +162,17 @@ function readAgents() {
           summary: String(error),
           updatedAt: new Date(0).toISOString(),
           heartbeatAgeMs: Infinity,
+          heartbeatExpired: true,
         };
       }
     })
-    .filter((agent) => (showOffline ? true : agent.computedStatus !== "offline"))
+    .filter((agent) => (includeOffline ? true : agent.computedStatus !== "offline"))
+    .filter(
+      (agent) =>
+        includeExpired ||
+        !agent.heartbeatExpired ||
+        (agent.computedStatus === "stale" && agent.heartbeatAgeMs <= statusTtlMs),
+    )
     .filter((agent) => (workingOnly ? agent.computedStatus === "working" || agent.computedStatus === "stale" : true))
     .sort((a, b) => {
       const order = { working: 0, stale: 1, done: 2, idle: 3, error: 4, offline: 5 };
@@ -454,16 +467,15 @@ function printStatusline(args) {
   const options = parseStatuslineArgs(args);
   const style = (hex, text) => (options.plain ? text : `#[fg=${hex}]${text}#[default]`);
   const now = Date.now();
-  const ttlMs = Number(process.env.PI_OVERWATCH_STATUS_TTL_MS || 10 * 60 * 1000);
   const config = readConfig();
   const colors = resolveStatusColors(config, options.theme);
 
-  const agents = readAgents().filter((agent) => {
+  const agents = readAgents({ includeExpired: true }).filter((agent) => {
     if (options.session && agent.tmux?.sessionName !== options.session) return false;
     if (agent.computedStatus === "working") return true;
-    if (agent.computedStatus === "stale") return agent.heartbeatAgeMs <= ttlMs;
+    if (agent.computedStatus === "stale") return agent.heartbeatAgeMs <= statusTtlMs;
     const age = now - new Date(agent.updatedAt || 0).getTime();
-    return age <= ttlMs;
+    return age <= statusTtlMs;
   });
 
   if (agents.length === 0) {
@@ -520,9 +532,11 @@ function main() {
   scheduleRender();
 }
 
-const [, , command, ...cliArgs] = process.argv;
-if (command === "statusline") {
-  printStatusline(cliArgs);
-} else {
-  main();
+if (process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href) {
+  const [, , command, ...cliArgs] = process.argv;
+  if (command === "statusline") {
+    printStatusline(cliArgs);
+  } else {
+    main();
+  }
 }

@@ -324,10 +324,11 @@ export default function overwatch(pi: ExtensionAPI) {
   function startHeartbeat(ctx?: any): void {
     stopHeartbeat();
     heartbeat = setInterval(() => {
-      if (!state || state.status !== "working") return;
+      if (!state || state.status === "offline") return;
       state.lastHeartbeatAt = nowIso();
       flush(ctx);
     }, HEARTBEAT_MS);
+    heartbeat.unref();
   }
 
   pi.registerCommand("overwatch", {
@@ -373,6 +374,7 @@ export default function overwatch(pi: ExtensionAPI) {
       identity: getIdentityLabel(state),
       tmux,
     });
+    startHeartbeat(ctx);
   });
 
   pi.on("agent_start", async (_event, ctx) => {
@@ -441,7 +443,6 @@ export default function overwatch(pi: ExtensionAPI) {
       state.toolName = undefined;
       state.finishedAt = nowIso();
       state.summary = summarizeToolText(event.toolName, resultText) ?? `Tool failed: ${event.toolName}`;
-      stopHeartbeat();
     } else {
       state.phase = "thinking";
       state.toolName = undefined;
@@ -478,7 +479,6 @@ export default function overwatch(pi: ExtensionAPI) {
     state.toolName = undefined;
     state.finishedAt = nowIso();
     touch(ctx);
-    stopHeartbeat();
     emitEvent("agent_end", { status: state.status });
     notifyTmuxFinished();
   });

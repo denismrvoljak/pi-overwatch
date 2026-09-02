@@ -16,6 +16,9 @@
   "bin": {
     "pi-overwatch": "./bin/pi-overwatch.js"
   },
+  "scripts": {
+    "test": "node --experimental-strip-types --test"
+  },
   "pi": {
     "extensions": [
       "./extensions"
