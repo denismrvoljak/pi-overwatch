@@ -237,6 +237,8 @@ Flags:
 - `--source pi|claude-code` — only show agents from that tool
 - `--no-source` — hide the `π` / `✳` source glyph
 
+The row uses a status-colored indicator, neutral session name, and muted activity/time so it stays scannable without coloring the whole label. Agents inherit the status row background and are separated by muted vertical rules with two spaces on either side. This separates agents without adding hard-edged background blocks or competing with the main tmux bar's Powerline arrows. `--plain` remains unstyled and uses ASCII separators. Add `--no-source` to hide the tool glyph for a quieter row; keep it when distinguishing Pi from Claude Code matters.
+
 #### Colors and light/dark themes
 
 The dashboard and statusline read `@powerkit_theme` on each refresh: `catppuccin` selects Latte/Mocha colors; `rose-pine` and unknown/unset families use Dawn/Moon. This keeps Overwatch aligned with its tmux host without a separate settings watcher. Catppuccin dark variants currently use Mocha colors.

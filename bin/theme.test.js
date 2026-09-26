@@ -21,6 +21,25 @@ import { execFileSync } from 'node:child_process';
     assert.match(run('catppuccin', 'latte', 'dark'), /#7f849c/);
     assert.match(run('catppuccin', 'mocha', 'dark', ['--theme', 'light']), /#8c8fa1/);
     assert.match(run('', ''), /#908caa/);
+    mkdirSync(join(root, 'agents'), { recursive: true });
+    writeFileSync(join(root, 'agents/test.json'), JSON.stringify({
+      agentId: 'test', sessionName: 'demo', status: 'working', phase: 'thinking',
+      updatedAt: new Date().toISOString(), startedAt: new Date().toISOString(), lastHeartbeatAt: new Date().toISOString(),
+    }));
+    const styled = run('catppuccin', 'mocha', '', ['--no-source']);
+    assert.match(styled, /#\[fg=#89b4fa\]●#\[fg=default\] #\[fg=#cdd6f4\]demo#\[fg=default\]/);
+    assert.doesNotMatch(styled, /bg=/);
+    assert.match(styled, /#\[fg=#7f849c\] thinking/);
+    assert.doesNotMatch(styled, /π/);
+    assert.match(run('catppuccin', 'mocha', '', ['--no-source', '--plain']), /^● demo thinking \d\d:\d\d\n$/);
+    writeFileSync(join(root, 'agents/second.json'), JSON.stringify({
+      agentId: 'second', sessionName: 'other', status: 'idle', updatedAt: new Date().toISOString(),
+    }));
+    const multiple = run('catppuccin', 'mocha', '', ['--no-source']);
+    assert.match(multiple, /  #\[fg=#6c7086\]│#\[fg=default\]  /);
+    assert.doesNotMatch(multiple, /bg=/);
+    assert.match(run('catppuccin', 'mocha', '', ['--plain']), /  \|  /);
+    assert.doesNotMatch(run('catppuccin', 'mocha', '', ['--plain']), /#\[/);
     writeFileSync(join(root, 'config.json'), JSON.stringify({ statusline: { theme: 'light', colors: { dim: '#123456' } } }));
     assert.match(run('catppuccin', 'mocha'), /#123456/);
   } finally {

@@ -500,7 +500,7 @@ function parseStatuslineArgs(args) {
 
 function printStatusline(args) {
   const options = parseStatuslineArgs(args);
-  const style = (hex, text) => (options.plain ? text : `#[fg=${hex}]${text}#[default]`);
+  const style = (hex, text) => (options.plain ? text : `#[fg=${hex}]${text}#[fg=default]`);
   const now = Date.now();
   const ttlMs = Number(process.env.PI_OVERWATCH_STATUS_TTL_MS || 10 * 60 * 1000);
   const config = readConfig();
@@ -540,20 +540,21 @@ function printStatusline(args) {
     }
     const identity = escapeTmux(label);
     const src = showSource ? `${style(colors.dim, sourceGlyph(agent))} ` : "";
+    const summary = `${src}${style(hex, icon)} ${style(colors.text, identity)}`;
 
     if (status === "working" || status === "stale" || status === "blocked") {
       const doing = status === "blocked" ? "" : escapeTmux(agent.toolName || agent.phase || "");
       const elapsed = agent.startedAt ? formatDuration(now - new Date(agent.startedAt).getTime()) : "";
       const detail = [doing, elapsed].filter(Boolean).join(" ");
-      return `${src}${style(hex, `${icon} ${identity}`)}${detail ? style(colors.dim, ` ${detail}`) : ""}`;
+      return `${summary}${detail ? style(colors.dim, ` ${detail}`) : ""}`;
     }
-    return `${src}${style(hex, `${icon} ${identity}`)}`;
+    return summary;
   });
 
   const overflow = agents.length - options.max;
   if (overflow > 0) segments.push(style(colors.dim, `+${overflow}`));
 
-  const separator = options.plain ? "  " : ` ${style(colors.sep, "·")} `;
+  const separator = options.plain ? "  |  " : `  ${style(colors.sep, "│")}  `;
   process.stdout.write(segments.join(separator) + "\n");
 }
 
