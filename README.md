@@ -239,11 +239,15 @@ Flags:
 
 #### Colors and light/dark themes
 
-With `auto` (the default), the theme is resolved from tmux options:
+The dashboard and statusline read `@powerkit_theme` on each refresh: `catppuccin` selects Latte/Mocha colors; `rose-pine` and unknown/unset families use Dawn/Moon. This keeps Overwatch aligned with its tmux host without a separate settings watcher. Catppuccin dark variants currently use Mocha colors.
 
-1. `@pi_overwatch_theme` — set `tmux set -g @pi_overwatch_theme light` (or `dark`) to pin it
-2. `@powerkit_theme_variant` — `latte` maps to light, anything else to dark
-3. falls back to dark
+With `auto` (the default), brightness is resolved in this order:
+
+1. `@pi_overwatch_theme` — `light` or `dark` pins brightness
+2. `@powerkit_theme_variant` — `latte` and `dawn` map to light; other nonempty variants map to dark
+3. Legacy `~/.config/theme-mode`, then dark if absent
+
+Explicit `--theme` or `statusline.theme` light/dark choices override brightness, not the tmux palette family. Custom `statusline.colors` still wins over palette colors. Reopen an already-running dashboard once after upgrading; subsequent tmux palette changes apply on its regular refresh. Run `node --test bin/theme.test.js` to test palette resolution through the real CLI with isolated tmux responses.
 
 Pin a theme or override individual colors in the config:
 

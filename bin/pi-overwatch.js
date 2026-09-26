@@ -414,6 +414,20 @@ const STATUS_THEMES = {
   },
 };
 
+// Catppuccin Latte / Mocha. Match tmux's palette rather than only its brightness.
+const CATPPUCCIN_THEMES = {
+  light: {
+    text: "#4c4f69", heading: "#8839ef", working: "#1e66f5",
+    stale: "#df8e1d", blocked: "#fe640b", done: "#40a02b",
+    error: "#d20f39", idle: "#8c8fa1", dim: "#8c8fa1", sep: "#9ca0b0",
+  },
+  dark: {
+    text: "#cdd6f4", heading: "#cba6f7", working: "#89b4fa",
+    stale: "#f9e2af", blocked: "#fab387", done: "#a6e3a1",
+    error: "#f38ba8", idle: "#7f849c", dim: "#7f849c", sep: "#6c7086",
+  },
+};
+
 // Known powerkit variant names, keyed by whether they render on a light background.
 const LIGHT_POWERKIT_VARIANTS = new Set(["latte", "dawn"]);
 
@@ -440,21 +454,21 @@ function readSharedThemeMode() {
 
 function resolveStatusColors(config, themeArg) {
   let theme = themeArg || config.statusline?.theme || "auto";
+  const family = tmuxOption("@powerkit_theme");
   if (theme === "auto") {
     const explicit = tmuxOption("@pi_overwatch_theme");
     if (explicit === "light" || explicit === "dark") {
       theme = explicit;
     } else {
-      const shared = readSharedThemeMode();
-      if (shared) {
-        theme = shared;
-      } else {
-        const variant = tmuxOption("@powerkit_theme_variant");
-        theme = LIGHT_POWERKIT_VARIANTS.has(variant) ? "light" : "dark";
-      }
+      const variant = tmuxOption("@powerkit_theme_variant");
+      // tmux is authoritative when present; the legacy file is only a fallback.
+      theme = variant
+        ? (LIGHT_POWERKIT_VARIANTS.has(variant) ? "light" : "dark")
+        : (readSharedThemeMode() || "dark");
     }
   }
-  const base = STATUS_THEMES[theme] || STATUS_THEMES.dark;
+  const palettes = family === "catppuccin" ? CATPPUCCIN_THEMES : STATUS_THEMES;
+  const base = palettes[theme] || palettes.dark;
   return { ...base, ...(config.statusline?.colors || {}) };
 }
 
