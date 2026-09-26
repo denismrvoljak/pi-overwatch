@@ -219,6 +219,16 @@ Supported values:
 
 ## tmux integration
 
+### Ready-made config
+
+[`examples/tmux.conf`](examples/tmux.conf) provides a compact agent row with palette-aware colors and optional dashboard bindings. Copy it to `~/.config/tmux/overwatch.conf`, then add this **after** your existing status-bar theme/plugin configuration in `~/.tmux.conf`:
+
+```tmux
+source-file ~/.config/tmux/overwatch.conf
+```
+
+Reload with `tmux source-file ~/.tmux.conf`. The example preserves your main row (`status-format[0]`), sets the status area to two rows, and uses the second row for Overwatch. If you already have multiple status rows, adjust its index and row count before sourcing it. Keybindings and refresh-interval changes are commented out so the example does not override them unexpectedly. `pi-overwatch` must be on the tmux server's PATH. The example is also included in the npm package under `examples/`.
+
 ### Status line
 
 `pi-overwatch statusline` prints a one-line, tmux-styled summary of all live sessions, meant for embedding in the tmux status bar:
@@ -237,13 +247,19 @@ Flags:
 - `--source pi|claude-code` — only show agents from that tool
 - `--no-source` — hide the `π` / `✳` source glyph
 
+The row uses a status-colored indicator, neutral session name, and muted activity/time so it stays scannable without coloring the whole label. Agents inherit the status row background and are separated by muted vertical rules with two spaces on either side. This separates agents without adding hard-edged background blocks or competing with the main tmux bar's Powerline arrows. `--plain` remains unstyled and uses ASCII separators. Add `--no-source` to hide the tool glyph for a quieter row; keep it when distinguishing Pi from Claude Code matters.
+
 #### Colors and light/dark themes
 
-With `auto` (the default), the theme is resolved from tmux options:
+The dashboard and statusline read `@powerkit_theme` on each refresh: `catppuccin` selects Latte/Mocha colors; `rose-pine` and unknown/unset families use Dawn/Moon. This keeps Overwatch aligned with its tmux host without a separate settings watcher. Catppuccin dark variants currently use Mocha colors.
 
-1. `@pi_overwatch_theme` — set `tmux set -g @pi_overwatch_theme light` (or `dark`) to pin it
-2. `@powerkit_theme_variant` — `latte` maps to light, anything else to dark
-3. falls back to dark
+With `auto` (the default), brightness is resolved in this order:
+
+1. `@pi_overwatch_theme` — `light` or `dark` pins brightness
+2. `@powerkit_theme_variant` — `latte` and `dawn` map to light; other nonempty variants map to dark
+3. Legacy `~/.config/theme-mode`, then dark if absent
+
+Explicit `--theme` or `statusline.theme` light/dark choices override brightness, not the tmux palette family. Custom `statusline.colors` still wins over palette colors. Reopen an already-running dashboard once after upgrading; subsequent tmux palette changes apply on its regular refresh. Run `node --test bin/theme.test.js` to test palette resolution through the real CLI with isolated tmux responses.
 
 Pin a theme or override individual colors in the config:
 
