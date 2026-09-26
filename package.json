@@ -27,6 +27,7 @@
     "bin",
     "extensions",
     "hooks",
+    "examples",
     "config.example.json"
   ],
   "engines": {

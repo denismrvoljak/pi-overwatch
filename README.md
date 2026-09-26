@@ -219,6 +219,16 @@ Supported values:
 
 ## tmux integration
 
+### Ready-made config
+
+[`examples/tmux.conf`](examples/tmux.conf) provides a compact agent row with palette-aware colors and optional dashboard bindings. Copy it to `~/.config/tmux/overwatch.conf`, then add this **after** your existing status-bar theme/plugin configuration in `~/.tmux.conf`:
+
+```tmux
+source-file ~/.config/tmux/overwatch.conf
+```
+
+Reload with `tmux source-file ~/.tmux.conf`. The example preserves your main row (`status-format[0]`), sets the status area to two rows, and uses the second row for Overwatch. If you already have multiple status rows, adjust its index and row count before sourcing it. Keybindings and refresh-interval changes are commented out so the example does not override them unexpectedly. `pi-overwatch` must be on the tmux server's PATH. The example is also included in the npm package under `examples/`.
+
 ### Status line
 
 `pi-overwatch statusline` prints a one-line, tmux-styled summary of all live sessions, meant for embedding in the tmux status bar:
