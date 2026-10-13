@@ -152,8 +152,11 @@ function readAgents() {
         // An agent waiting on a human isn't stale — it is correctly reporting
         // that it has nothing to report. Only silence while it claims to be
         // doing something counts.
-        const canGoStale = state.status === "working" && !state.blocked && state.phase !== "waiting";
-        const computedStatus = state.blocked
+        // `blocked` is a status since the OSC 7501 alignment; older producers
+        // still write it as a flag on `working`.
+        const blocked = state.status === "blocked" || Boolean(state.blocked);
+        const canGoStale = state.status === "working" && !blocked && state.phase !== "waiting";
+        const computedStatus = blocked
           ? "blocked"
           : canGoStale && heartbeatAgeMs > staleMs
             ? "stale"
@@ -210,6 +213,15 @@ function formatAge(ms) {
   if (!Number.isFinite(ms)) return "--";
   const sec = Math.max(0, Math.floor(ms / 1000));
   return `${sec}s`;
+}
+
+// What the agent is doing, in the protocol's terms: what it is blocked on,
+// otherwise its tool or phase, plus progress when the producer reports one.
+function doingLabel(agent) {
+  const doing = agent.computedStatus === "blocked"
+    ? agent.kind || (agent.blocked ? "permission" : "waiting")
+    : agent.toolName || agent.phase || "waiting";
+  return Number.isInteger(agent.progress) ? `${doing} ${agent.progress}%` : doing;
 }
 
 function iconFor(status, colors) {
@@ -310,7 +322,7 @@ function render() {
         pad(fg(colors.dim, sourceGlyph(item)), 3),
         pad(fg(colors.text, identity), 22),
         pad(identityMeta, 10),
-        pad(item.toolName || item.phase || "waiting", 12),
+        pad(doingLabel(item), 12),
         pad(item.summary || "", Math.max(10, width - 76)),
         pad(queue, 5),
         pad(formatAge(item.heartbeatAgeMs), 6),
@@ -543,7 +555,7 @@ function printStatusline(args) {
     const summary = `${src}${style(hex, icon)} ${style(colors.text, identity)}`;
 
     if (status === "working" || status === "stale" || status === "blocked") {
-      const doing = status === "blocked" ? "" : escapeTmux(agent.toolName || agent.phase || "");
+      const doing = escapeTmux(doingLabel(agent));
       const elapsed = agent.startedAt ? formatDuration(now - new Date(agent.startedAt).getTime()) : "";
       const detail = [doing, elapsed].filter(Boolean).join(" ");
       return `${summary}${detail ? style(colors.dim, ` ${detail}`) : ""}`;

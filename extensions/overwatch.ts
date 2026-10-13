@@ -4,8 +4,10 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { programStatusSequence, wrapForTmux } from "../hooks/program-status.js";
 
-type AgentStatus = "idle" | "working" | "done" | "error" | "offline";
+// OSC 7501 program states, plus Overwatch's `offline` for an ended session.
+type AgentStatus = "idle" | "working" | "done" | "blocked" | "error" | "offline";
 type AgentPhase = "thinking" | "tool" | "waiting" | "queueing";
 
 type TmuxInfo = {
@@ -30,6 +32,8 @@ type AgentState = {
   status: AgentStatus;
   phase: AgentPhase;
   toolName?: string;
+  kind?: "permission" | "question" | "auth";
+  progress?: number;
   summary?: string;
   startedAt?: string;
   finishedAt?: string;
@@ -188,6 +192,15 @@ function getIdentityLabel(state: AgentState): string {
   return state.tmux?.sessionName || state.sessionName || state.projectName || path.basename(state.cwd || state.agentId);
 }
 
+function readProgramStatusEnabled(rootDir: string): boolean {
+  try {
+    const userConfig = JSON.parse(fs.readFileSync(path.join(rootDir, "config.json"), "utf8"));
+    return userConfig?.programStatus?.emit === true;
+  } catch {
+    return false;
+  }
+}
+
 function readTmuxNotifyConfig(rootDir: string): TmuxNotifyConfig {
   const defaults: TmuxNotifyConfig = { notify: true, bell: false };
   try {
@@ -242,9 +255,39 @@ export default function overwatch(pi: ExtensionAPI) {
   const agentsDir = path.join(rootDir, "agents");
   const eventsFile = path.join(rootDir, "events.jsonl");
   const tmuxConfig = readTmuxNotifyConfig(rootDir);
+  const programStatusEnabled = readProgramStatusEnabled(rootDir);
 
   let state: AgentState | undefined;
   let heartbeat: NodeJS.Timeout | undefined;
+  let ttyFd: number | undefined;
+  let lastReportKey: string | undefined;
+
+  // Pi owns its terminal, so the report goes straight to /dev/tty. Writes are
+  // synchronous and land between TUI frames.
+  function reportProgramStatus(): void {
+    if (!programStatusEnabled || !state) return;
+    // Streaming tool output changes the summary constantly; only a change in
+    // what the agent is doing is worth a report.
+    const key = `${state.status}:${state.kind ?? ""}:${state.progress ?? ""}:${state.phase}:${state.toolName ?? ""}`;
+    if (key === lastReportKey) return;
+    const sequence = programStatusSequence({
+      status: state.status,
+      kind: state.kind,
+      progress: state.progress,
+      app: "pi",
+      id: state.agentId,
+      title: getIdentityLabel(state),
+      msg: state.summary,
+    });
+    if (!sequence) return;
+    try {
+      ttyFd ??= fs.openSync("/dev/tty", "a");
+      fs.writeSync(ttyFd, process.env.TMUX ? wrapForTmux(sequence) : sequence);
+      lastReportKey = key;
+    } catch {
+      // no terminal (print mode, CI); stay quiet
+    }
+  }
 
   function notifyTmuxFinished(): void {
     if (!state?.tmux) return;
@@ -309,6 +352,7 @@ export default function overwatch(pi: ExtensionAPI) {
     if (!filePath) return;
     atomicWriteJson(filePath, state);
     renderFooterStatus(ctx);
+    reportProgramStatus();
   }
 
   function touch(ctx?: any): void {
@@ -494,5 +538,7 @@ export default function overwatch(pi: ExtensionAPI) {
     touch(ctx);
     stopHeartbeat();
     emitEvent("session_shutdown");
+    if (ttyFd !== undefined) fs.closeSync(ttyFd);
+    ttyFd = undefined;
   });
 }

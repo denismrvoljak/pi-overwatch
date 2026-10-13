@@ -11,6 +11,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
 
+import { emitProgramStatus } from "./program-status.js";
 import { spawnTmuxEffects } from "./tmux-effects.js";
 
 const MAX_EVENTS_FILE_BYTES = 5 * 1024 * 1024;
@@ -121,11 +122,12 @@ function getTmuxInfo() {
 }
 
 function readConfig(rootDir) {
-  const defaults = { notify: true, bell: false, staleMs: DEFAULT_STALE_MS };
+  const defaults = { notify: true, bell: false, staleMs: DEFAULT_STALE_MS, programStatus: false };
   try {
     const userConfig = JSON.parse(fs.readFileSync(path.join(rootDir, "config.json"), "utf8"));
     return {
       ...defaults,
+      programStatus: userConfig?.programStatus?.emit === true,
       ...(userConfig?.tmux || {}),
       ...(userConfig?.claudeCode || {}),
     };
@@ -209,6 +211,13 @@ function loadOrInit(rootDir, payload, event) {
 
   const cwd = payload.cwd || existing?.cwd || process.cwd();
   const tmux = resolveTmux(existing, event);
+
+  // Before statuses followed OSC 7501, blocked was a flag on `working`.
+  if (existing?.blocked) {
+    existing.status = "blocked";
+    existing.kind = "permission";
+  }
+  if (existing) delete existing.blocked;
 
   const state = existing || {
     agentId,
@@ -307,13 +316,20 @@ export function runClaudeHook(argv = []) {
   const { filePath, state } = loadOrInit(rootDir, payload, event);
   state.staleMs = config.staleMs;
 
+  // Report to the terminal first, so a freshly resolved tty is cached too.
+  const save = () => {
+    emitProgramStatus(state, { app: "claude-code", enabled: config.programStatus, refreshTty: TMUX_LOOKUP_EVENTS.has(event) });
+    atomicWriteJson(filePath, state);
+  };
+
   switch (event) {
     case "SessionStart":
       // Also fires on resume/clear/compact, so don't clobber an active run.
-      if (state.status !== "working") {
+      if (state.status !== "working" && state.status !== "blocked") {
         state.status = "idle";
         state.phase = "waiting";
         state.toolName = undefined;
+        state.kind = undefined;
       }
       emitEvent(rootDir, state, "session_start", {
         reason: payload.source,
@@ -326,19 +342,19 @@ export function runClaudeHook(argv = []) {
       state.status = "working";
       state.phase = "thinking";
       state.toolName = undefined;
-      state.blocked = false;
+      state.kind = undefined;
       state.summary = sanitizeSummary(payload.prompt) ?? "Working";
       state.startedAt = nowIso();
       state.finishedAt = undefined;
       emitEvent(rootDir, state, "agent_start", { summary: state.summary });
-      atomicWriteJson(filePath, state);
+      save();
       if (state.tmux) spawnTmuxEffects({ refresh: true });
       return;
 
     case "PreToolUse":
       state.status = "working";
       state.phase = "tool";
-      state.blocked = false;
+      state.kind = undefined;
       state.toolName = payload.tool_name;
       state.summary = summarizeToolStart(payload.tool_name, payload.tool_input);
       if (!state.startedAt) state.startedAt = nowIso();
@@ -350,7 +366,7 @@ export function runClaudeHook(argv = []) {
       break;
 
     case "PostToolUse": {
-      state.blocked = false;
+      state.kind = undefined;
       const failed = payload.tool_response?.success === false || Boolean(payload.tool_response?.error);
       if (failed) {
         state.status = "error";
@@ -378,18 +394,18 @@ export function runClaudeHook(argv = []) {
       state.toolName = undefined;
 
       if (classifyNotification(message) === "permission") {
-        state.status = "working";
+        state.status = "blocked";
+        state.kind = "permission";
         state.phase = "waiting";
-        state.blocked = true;
         state.summary = message;
         emitEvent(rootDir, state, "notification", { blocked: true, summary: state.summary });
         notifyBlocked(state, config, message);
       } else if (classifyNotification(message) === "idle") {
         // Preserve a finished status; only a run that never saw Stop gets
         // demoted out of `working`.
-        if (state.status === "working") state.status = "idle";
+        if (state.status === "working" || state.status === "blocked") state.status = "idle";
         state.phase = "waiting";
-        state.blocked = false;
+        state.kind = undefined;
         emitEvent(rootDir, state, "notification", { blocked: false, idle: true });
       } else {
         // Unrecognised message: record it, but never change status. Guessing
@@ -406,10 +422,10 @@ export function runClaudeHook(argv = []) {
       state.toolName = undefined;
       state.finishedAt = nowIso();
       // A pending permission prompt is no longer true once we stop.
-      if (state.blocked) state.summary = "Idle";
-      state.blocked = false;
+      if (state.kind) state.summary = "Idle";
+      state.kind = undefined;
       emitEvent(rootDir, state, "agent_end", { status: state.status });
-      atomicWriteJson(filePath, state);
+      save();
       notifyFinished(state, config);
       return;
 
@@ -417,10 +433,10 @@ export function runClaudeHook(argv = []) {
       state.status = "offline";
       state.phase = "waiting";
       state.toolName = undefined;
-      state.blocked = false;
+      state.kind = undefined;
       state.finishedAt = state.finishedAt ?? nowIso();
       emitEvent(rootDir, state, "session_shutdown", { reason: payload.reason });
-      atomicWriteJson(filePath, state);
+      save();
       if (state.tmux) spawnTmuxEffects({ refresh: true });
       return;
 
@@ -428,7 +444,7 @@ export function runClaudeHook(argv = []) {
       return;
   }
 
-  atomicWriteJson(filePath, state);
+  save();
 }
 
 export const CLAUDE_HOOK_EVENTS = [

@@ -120,11 +120,51 @@ That means if you use a tmux workflow like "one tmux session per project", the d
 Status icons:
 
 - `●` working
-- `⏸` blocked — waiting on you (permission prompt)
+- `⏸` blocked — waiting on you; `DOING` says on what (`permission`, `question`, `auth`)
 - `✓` done
 - `!` stale — claimed to be working, then went silent
 - `✕` error
 - `○` offline
+
+## Program status (OSC 7501)
+
+Overwatch statuses follow the [program status protocol](https://mitchellh.com/writing/program-status-osc7501) ([spec](https://www.superlogical.com/rex/docs/build/program-status)), so a state means the same thing in the dashboard as it does to a terminal that supports it.
+
+| Overwatch | OSC 7501 | Notes |
+| --- | --- | --- |
+| `idle` | `idle` | waiting for your next instruction |
+| `working` | `working` | `progress` (0–100) is shown when a producer sets it |
+| `blocked` | `blocked` | with `kind`: `permission`, `question`, or `auth` |
+| `done` | `done` | |
+| `error` | `error` | |
+| `offline` | `clear` | the session ended |
+| `stale` | — | Overwatch only: computed by the dashboard, never reported |
+
+The `SRC` tool maps to `app` (`pi`, `claude-code`), the target label to `title`, and the summary to `msg`.
+
+### Report status to your terminal
+
+Opt in, and agents also report their status to the terminal they run in:
+
+```json
+{
+  "programStatus": {
+    "emit": true
+  }
+}
+```
+
+Each agent reports under its own record `id`. Terminals ignore OSCs they do not understand, so this is safe on any terminal. Pi writes to its own terminal; Claude Code hooks have no terminal of their own, so they write to the tty of the Claude Code process.
+
+Inside tmux, reports are wrapped in tmux passthrough and only reach the outer terminal with `set -g allow-passthrough on`. With `on`, tmux forwards them only from visible panes; use `all` to also forward from panes in other windows and sessions. The outer terminal sees one tmux client, so the per-agent `id` is what keeps agents apart there.
+
+Status still flows one way: terminals cannot be asked for the records they hold, so the dashboard and tmux row keep reading Overwatch's own state files.
+
+To check whether your terminal supports the protocol, run this outside tmux. A supporting terminal answers with `?`:
+
+```bash
+printf '\e]7501;?\e\\'; read -rs -t 1 -d '\' reply; printf '%q\n' "$reply"
+```
 
 ## Claude Code
 
@@ -157,7 +197,7 @@ Hide the tag in the statusline with `--no-source`, or filter to one agent with `
 
 Pi runs Overwatch as a long-lived extension, so it can heartbeat every 5 seconds. Claude Code has no such process — each hook is its own short-lived invocation — so there is nothing to heartbeat from. Instead the Claude Code producer writes a `staleMs` field on its own state, and the dashboard honours that per agent rather than applying the global `PI_OVERWATCH_STALE_MS`. Default is 3 minutes; change it with `claudeCode.staleMs` in the config.
 
-Claude Code also exposes a signal Pi does not: it fires `Notification` when it blocks on a permission prompt. Those rows get their own `blocked` group and a `⏸` icon, and trigger a tmux message when the pane is not visible, since an agent waiting on you is the thing most worth surfacing.
+Claude Code also exposes a signal Pi does not: it fires `Notification` when it blocks on a permission prompt. Those rows get the `blocked` status with kind `permission`, their own group and a `⏸` icon, and trigger a tmux message when the pane is not visible, since an agent waiting on you is the thing most worth surfacing.
 
 The same hook also fires on a plain idle timeout roughly a minute after Claude has already stopped, which means the two cases must be told apart by message text — treating an idle ping as activity resurrects a finished session into `working`, where it then goes stale and shows `!`. Only a message matching a permission prompt sets `blocked`; an idle one leaves a finished status alone; an unrecognised one changes no status at all.
 
@@ -171,7 +211,7 @@ Relatedly, `stale` now means "claimed to be working, then went silent". An agent
 | `working` / `thinking` | `UserPromptSubmit` |
 | `working` / `tool` | `PreToolUse` |
 | back to `thinking`, or `error` | `PostToolUse` |
-| `blocked`, or idle-with-no-change | `Notification` |
+| `blocked` (`permission`), or idle-with-no-change | `Notification` |
 | `done` + tmux notify | `Stop` |
 | `offline` | `SessionEnd` |
 
@@ -219,6 +259,10 @@ Supported values:
 
 - `staleMs` — how long a Claude Code agent may go without a hook before it reads as stale (default `180000`)
 - `notify` / `bell` — same meaning as `tmux` below; set here to override for Claude Code only
+
+### `programStatus`
+
+- `emit` — also report status to the agent's terminal as OSC 7501 (default `false`), see [Program status](#program-status-osc-7501)
 
 ### `tmux`
 
@@ -381,6 +425,7 @@ pi-overwatch/
 ├── hooks/
 │   ├── claude-code.js
 │   ├── install.js
+│   ├── program-status.js
 │   └── tmux-effects.js
 ├── config.example.json
 ├── LICENSE
