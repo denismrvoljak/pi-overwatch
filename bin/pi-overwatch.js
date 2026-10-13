@@ -587,6 +587,9 @@ if (command === "statusline") {
 } else if (command === "install-claude-hooks") {
   const { installClaudeHooks } = await import("../hooks/install.js");
   installClaudeHooks(cliArgs);
+} else if (command === "install-tmux") {
+  const { installTmux } = await import("./install-tmux.js");
+  installTmux(cliArgs);
 } else {
   main();
 }

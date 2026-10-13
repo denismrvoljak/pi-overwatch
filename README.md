@@ -227,9 +227,28 @@ Supported values:
 
 ## tmux integration
 
-### Ready-made config
+### Install the status row
 
-[`examples/tmux.conf`](examples/tmux.conf) provides a compact agent row with palette-aware colors and optional dashboard bindings. Copy it to `~/.config/tmux/overwatch.conf`, then add this **after** your existing status-bar theme/plugin configuration in `~/.tmux.conf`:
+```bash
+pi-overwatch install-tmux
+```
+
+This writes `~/.config/tmux/overwatch.conf` from [`examples/tmux.conf`](examples/tmux.conf) and appends one marked `source-file` block to the end of your tmux config (`~/.tmux.conf`, or `~/.config/tmux/tmux.conf` if that is the one you use), so it loads after your theme and plugins. If tmux is running, it loads the row straight away.
+
+The generated file calls `node` and the installed script by absolute path. tmux runs `#()` without your shell profile, so `pi-overwatch` does not need to be on tmux's PATH. Re-run the command after moving or reinstalling Node to refresh those paths.
+
+Flags:
+
+- `--dry-run` — print both files without writing
+- `--uninstall` — remove the block and the generated file
+- `--no-reload` — do not load it into a running tmux server
+- `--command CMD` — use `CMD` instead of the absolute paths, for example `--command pi-overwatch`
+
+The command is idempotent and backs up your tmux config to `*.overwatch-backup` before changing it. The row takes `status-format[1]` and sets the status area to two rows; the installer warns when your config already configures extra rows. Edit the generated file freely, but re-running the installer overwrites it.
+
+### Manual setup
+
+Copy [`examples/tmux.conf`](examples/tmux.conf) to `~/.config/tmux/overwatch.conf`, then add this **after** your existing status-bar theme/plugin configuration in `~/.tmux.conf`:
 
 ```tmux
 source-file ~/.config/tmux/overwatch.conf
@@ -355,12 +374,14 @@ That command shows the current state file path for the active Pi instance.
 ```text
 pi-overwatch/
 ├── bin/
+│   ├── install-tmux.js
 │   └── pi-overwatch.js
 ├── extensions/
 │   └── overwatch.ts
 ├── hooks/
 │   ├── claude-code.js
-│   └── install.js
+│   ├── install.js
+│   └── tmux-effects.js
 ├── config.example.json
 ├── LICENSE
 ├── package.json
