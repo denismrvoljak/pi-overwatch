@@ -233,12 +233,17 @@ function formatAge(ms) {
   return `${sec}s`;
 }
 
+// MCP tools arrive as mcp__<server>__<tool>; the tool part is what matters.
+function shortToolName(name) {
+  return name?.startsWith("mcp__") ? name.split("__").pop() : name;
+}
+
 // What the agent is doing, in the protocol's terms: what it is blocked on,
 // otherwise its tool or phase, plus progress when the producer reports one.
 function doingLabel(agent) {
   const doing = agent.computedStatus === "blocked"
     ? agent.kind || (agent.blocked ? "permission" : "waiting")
-    : agent.toolName || agent.phase || "waiting";
+    : shortToolName(agent.toolName) || agent.phase || "waiting";
   return Number.isInteger(agent.progress) ? `${doing} ${agent.progress}%` : doing;
 }
 
@@ -515,14 +520,34 @@ function escapeTmux(text) {
   return String(text).replace(/#/g, "##");
 }
 
+// Keeps both ends: the start names the project, the end often tells apart
+// siblings (`…-2`, `:window.pane`).
+function truncateMiddle(text, max) {
+  const chars = Array.from(text);
+  if (!(max > 0) || chars.length <= max) return text;
+  if (max === 1) return "…";
+  const head = Math.ceil((max - 1) * 0.6);
+  const tail = max - 1 - head;
+  return chars.slice(0, head).join("") + "…" + (tail > 0 ? chars.slice(-tail).join("") : "");
+}
+
+function truncateEnd(text, max) {
+  const chars = Array.from(text);
+  return chars.length <= max ? text : chars.slice(0, Math.max(0, max - 1)).join("") + "…";
+}
+
+const DEFAULT_MAX_LABEL = 24;
+const MAX_DOING = 16;
+
 function parseStatuslineArgs(args) {
-  const options = { plain: false, session: undefined, max: 6, theme: undefined, source: undefined, showSource: undefined };
+  const options = { plain: false, session: undefined, max: 6, maxLabel: undefined, theme: undefined, source: undefined, showSource: undefined };
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--plain") options.plain = true;
     else if (args[i] === "--no-source") options.showSource = false;
     else if (args[i] === "--source") options.source = args[++i];
     else if (args[i] === "--session") options.session = args[++i];
     else if (args[i] === "--max") options.max = Math.max(1, Number(args[++i]) || 6);
+    else if (args[i] === "--max-label") options.maxLabel = Math.max(0, Number(args[++i]) || 0);
     else if (args[i] === "--theme") options.theme = args[++i];
   }
   return options;
@@ -539,6 +564,9 @@ function printStatusline(args) {
   const colors = resolveStatusColors(config, options.theme);
 
   const showSource = options.showSource ?? config.statusline?.showSource ?? true;
+  // 0 turns truncation off.
+  const maxLabel = options.maxLabel ?? config.statusline?.maxLabel ?? DEFAULT_MAX_LABEL;
+  const identityMode = config.statusline?.identity ?? config.dashboard.identity;
 
   const agents = readAgents().filter((agent) => {
     if (options.session && agent.tmux?.sessionName !== options.session) return false;
@@ -554,7 +582,7 @@ function printStatusline(args) {
 
   const labelCounts = new Map();
   for (const agent of agents) {
-    const label = getIdentityLabel(agent, config.dashboard.identity);
+    const label = getIdentityLabel(agent, identityMode);
     labelCounts.set(label, (labelCounts.get(label) || 0) + 1);
   }
 
@@ -562,18 +590,18 @@ function printStatusline(args) {
     const status = agent.computedStatus;
     const icon = STATUS_ICONS[status] || STATUS_ICONS.idle;
     const hex = colors[status] || colors.idle;
-    let label = getIdentityLabel(agent, config.dashboard.identity);
+    let label = getIdentityLabel(agent, identityMode);
     if (labelCounts.get(label) > 1 && agent.tmux) {
       const win = agent.tmux.windowName || agent.tmux.windowIndex;
       const suffix = [win, agent.tmux.paneIndex].filter(Boolean).join(".");
       if (suffix) label = `${label}:${suffix}`;
     }
-    const identity = escapeTmux(label);
+    const identity = escapeTmux(truncateMiddle(label, maxLabel));
     const src = showSource ? `${style(colors.dim, sourceGlyph(agent))} ` : "";
     const summary = `${src}${style(hex, icon)} ${style(colors.text, identity)}`;
 
     if (status === "working" || status === "stale" || status === "blocked") {
-      const doing = escapeTmux(doingLabel(agent));
+      const doing = escapeTmux(truncateEnd(doingLabel(agent), MAX_DOING));
       const elapsed = agent.startedAt ? formatDuration(now - new Date(agent.startedAt).getTime()) : "";
       const detail = [doing, elapsed].filter(Boolean).join(" ");
       return `${summary}${detail ? style(colors.dim, ` ${detail}`) : ""}`;
