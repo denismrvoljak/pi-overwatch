@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { programStatusSequence, wrapForTmux } from "../hooks/program-status.js";
 
 // OSC 7501 program states, plus Overwatch's `offline` for an ended session.
