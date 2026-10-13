@@ -24,7 +24,7 @@ function isOverwatchEntry(entry) {
 
 function buildEntry(event) {
   const entry = {
-    hooks: [{ type: "command", command: HOOK_COMMAND, timeout: 5 }],
+    hooks: [{ type: "command", command: HOOK_COMMAND, timeout: 10 }],
   };
   if (MATCHER_EVENTS.has(event)) entry.matcher = "*";
   return entry;

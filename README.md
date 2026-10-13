@@ -144,6 +144,8 @@ Flags:
 
 The command is idempotent, backs up the previous file to `settings.json.overwatch-backup`, and leaves any other hooks you already have configured untouched. Restart Claude Code afterwards.
 
+Claude Code waits for each hook before continuing, so the hook only writes the state file and returns. tmux status refreshes, notifications, and the bell run in a detached process, which keeps a slow tmux server from stalling your prompt. Installed hooks get a 10s timeout as a backstop; re-run `pi-overwatch install-claude-hooks` after upgrading to pick it up.
+
 Rows are tagged by source in the `SRC` column and in the statusline:
 
 - `π` — Pi

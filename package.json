@@ -16,6 +16,9 @@
   "bin": {
     "pi-overwatch": "./bin/pi-overwatch.js"
   },
+  "scripts": {
+    "test": "node --test bin/*.test.js hooks/*.test.js"
+  },
   "pi": {
     "extensions": [
       "./extensions"

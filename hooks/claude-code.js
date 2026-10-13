@@ -11,6 +11,8 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
 
+import { spawnTmuxEffects } from "./tmux-effects.js";
+
 const MAX_EVENTS_FILE_BYTES = 5 * 1024 * 1024;
 const TRIM_EVENTS_TO_LAST_LINES = 2_000;
 
@@ -89,7 +91,8 @@ function tmuxRun(args) {
     return execFileSync("tmux", args, {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
-      timeout: 1500,
+      // The hook blocks Claude Code; a slow tmux must not.
+      timeout: 500,
     }).trim();
   } catch {
     return undefined;
@@ -115,33 +118,6 @@ function getTmuxInfo() {
     paneId: paneId || process.env.TMUX_PANE || undefined,
     panePath: panePath || undefined,
   };
-}
-
-function tmuxPaneVisible(paneId) {
-  const result = tmuxRun([
-    "display-message",
-    "-p",
-    "-t",
-    paneId,
-    "#{&&:#{session_attached},#{&&:#{window_active},#{pane_active}}}",
-  ]);
-  return result === "1";
-}
-
-function tmuxNotifyAllClients(message) {
-  const clients = tmuxRun(["list-clients", "-F", "#{client_name}"]);
-  if (!clients) return;
-  for (const client of clients.split("\n").filter(Boolean)) {
-    tmuxRun(["display-message", "-c", client, message]);
-  }
-}
-
-function tmuxRefreshStatus() {
-  const clients = tmuxRun(["list-clients", "-F", "#{client_name}"]);
-  if (!clients) return;
-  for (const client of clients.split("\n").filter(Boolean)) {
-    tmuxRun(["refresh-client", "-S", "-t", client]);
-  }
 }
 
 function readConfig(rootDir) {
@@ -209,7 +185,17 @@ function agentIdFor(payload) {
   return crypto.createHash("sha1").update(seed).digest("hex").slice(0, 12);
 }
 
-function loadOrInit(rootDir, payload) {
+// Pane identity rarely changes mid-session, so only SessionStart and
+// UserPromptSubmit pay for a tmux round trip; tool hooks reuse the cache.
+const TMUX_LOOKUP_EVENTS = new Set(["SessionStart", "UserPromptSubmit"]);
+
+function resolveTmux(existing, event) {
+  const cached = existing?.tmux;
+  if (cached && cached.paneId === process.env.TMUX_PANE && !TMUX_LOOKUP_EVENTS.has(event)) return cached;
+  return getTmuxInfo() || cached;
+}
+
+function loadOrInit(rootDir, payload, event) {
   const agentId = agentIdFor(payload);
   const filePath = path.join(rootDir, "agents", `${agentId}.json`);
   const timestamp = nowIso();
@@ -222,7 +208,7 @@ function loadOrInit(rootDir, payload) {
   }
 
   const cwd = payload.cwd || existing?.cwd || process.cwd();
-  const tmux = getTmuxInfo() || existing?.tmux;
+  const tmux = resolveTmux(existing, event);
 
   const state = existing || {
     agentId,
@@ -272,9 +258,10 @@ function emitEvent(rootDir, state, type, details = {}) {
 
 function notifyFinished(state, config) {
   if (!state.tmux) return;
-  tmuxRefreshStatus();
-  if (!config.notify) return;
-  if (state.tmux.paneId && tmuxPaneVisible(state.tmux.paneId)) return;
+  if (!config.notify) {
+    spawnTmuxEffects({ refresh: true });
+    return;
+  }
 
   const runtimeMs =
     state.startedAt && state.finishedAt
@@ -286,16 +273,13 @@ function notifyFinished(state, config) {
       : "";
   const icon = state.status === "error" ? "✕" : "✓";
   const message = `claude ${icon} ${getIdentityLabel(state)}: ${state.status}${runtime}`.replace(/#/g, "##");
-  tmuxNotifyAllClients(message);
-  if (config.bell) process.stdout.write("\x07");
+  spawnTmuxEffects({ refresh: true, message, paneId: state.tmux.paneId, bell: config.bell });
 }
 
 function notifyBlocked(state, config, detail) {
-  if (!state.tmux || !config.notify) return;
-  tmuxRefreshStatus();
-  if (state.tmux.paneId && tmuxPaneVisible(state.tmux.paneId)) return;
-  const message = `claude ⏸ ${getIdentityLabel(state)}: ${detail}`.replace(/#/g, "##");
-  tmuxNotifyAllClients(message);
+  if (!state.tmux) return;
+  const message = config.notify ? `claude ⏸ ${getIdentityLabel(state)}: ${detail}`.replace(/#/g, "##") : undefined;
+  spawnTmuxEffects({ refresh: true, message, paneId: state.tmux.paneId });
 }
 
 function readStdin() {
@@ -320,7 +304,7 @@ export function runClaudeHook(argv = []) {
 
   const rootDir = getRootDir();
   const config = readConfig(rootDir);
-  const { filePath, state } = loadOrInit(rootDir, payload);
+  const { filePath, state } = loadOrInit(rootDir, payload, event);
   state.staleMs = config.staleMs;
 
   switch (event) {
@@ -347,8 +331,9 @@ export function runClaudeHook(argv = []) {
       state.startedAt = nowIso();
       state.finishedAt = undefined;
       emitEvent(rootDir, state, "agent_start", { summary: state.summary });
-      tmuxRefreshStatus();
-      break;
+      atomicWriteJson(filePath, state);
+      if (state.tmux) spawnTmuxEffects({ refresh: true });
+      return;
 
     case "PreToolUse":
       state.status = "working";
@@ -436,7 +421,7 @@ export function runClaudeHook(argv = []) {
       state.finishedAt = state.finishedAt ?? nowIso();
       emitEvent(rootDir, state, "session_shutdown", { reason: payload.reason });
       atomicWriteJson(filePath, state);
-      tmuxRefreshStatus();
+      if (state.tmux) spawnTmuxEffects({ refresh: true });
       return;
 
     default:
