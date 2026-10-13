@@ -46,3 +46,26 @@ import { execFileSync } from 'node:child_process';
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('statusline shortens long labels and tool names', () => {
+  const root = mkdtempSync(join(tmpdir(), 'overwatch-label-'));
+  try {
+    mkdirSync(join(root, 'agents'));
+    const now = new Date().toISOString();
+    writeFileSync(join(root, 'agents/a.json'), JSON.stringify({
+      agentId: 'a', status: 'working', phase: 'tool', toolName: 'mcp__claude_ai_Slack__slack_send_message',
+      tmux: { sessionName: 'publish-the-explicit-daisy-price-inference-contr-2' },
+      updatedAt: now, startedAt: now, lastHeartbeatAt: now,
+    }));
+    const run = (...args) => execFileSync(process.execPath, [new URL('./pi-overwatch.js', import.meta.url).pathname, 'statusline', '--plain', '--no-source', ...args], {
+      encoding: 'utf8', env: { ...process.env, HOME: root, PI_OVERWATCH_DIR: root, TMUX: '' },
+    });
+    assert.match(run(), /^● publish-the-ex…e-contr-2 slack_send_mess… \d\d:\d\d\n$/);
+    assert.match(run('--max-label', '12'), /^● publish…tr-2 /);
+    assert.match(run('--max-label', '0'), /^● publish-the-explicit-daisy-price-inference-contr-2 /);
+    writeFileSync(join(root, 'config.json'), JSON.stringify({ statusline: { maxLabel: 8, identity: 'cwd' } }));
+    assert.match(run(), /^● a /);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

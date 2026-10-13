@@ -347,6 +347,7 @@ Flags:
 - `--plain` — no tmux style markup (for use outside tmux)
 - `--session NAME` — only show agents in that tmux session
 - `--max N` — max entries before collapsing to `+N` (default 6)
+- `--max-label N` — shorten each agent's name to `N` characters (default 24, `0` for no limit)
 - `--theme dark|light|auto` — color palette (default `auto`)
 - `--source pi|claude-code` — only show agents from that tool
 - `--no-source` — hide the `π` / `✳` source glyph
@@ -379,6 +380,21 @@ Pin a theme or override individual colors in the config:
 ```
 
 Color keys: `working`, `stale`, `done`, `error`, `idle`, `dim`, `sep`.
+
+#### Long names
+
+Names longer than 24 characters are shortened in the middle, keeping the start and the end, which often tells siblings apart: `publish-the-explicit-daisy-price-inference-contr-2` becomes `publish-the-ex…e-contr-2`. The current tool is capped at 16 characters, and MCP tools show only their tool name. Change the limit, or name agents differently in the statusline than in the dashboard:
+
+```json
+{
+  "statusline": {
+    "maxLabel": 16,
+    "identity": "cwd"
+  }
+}
+```
+
+`statusline.identity` takes the same values as [`dashboard.identity`](#dashboardidentity) and defaults to it.
 
 Entries stay until their agent ends, like OSC 7501 records: `idle`, `done`, and `error` remain visible until the next prompt replaces them or the session shuts down. Set `PI_OVERWATCH_STATUS_TTL_MS` to also drop entries that have not changed for that long.
 
