@@ -121,18 +121,20 @@ function getIdentityMeta(agent) {
     const pane = [win, agent.tmux.paneIndex].filter(Boolean).join(".");
     return pane ? `tmux ${pane}` : "tmux";
   }
-  if (agent.sessionName) return isClaudeCode(agent) ? "cc session" : "pi session";
+  if (agent.sessionName) return `${SOURCES[agent.source]?.short ?? "pi"} session`;
   return agent.cwd || "cwd";
 }
 
-function isClaudeCode(agent) {
-  return agent.source === "claude-code";
-}
-
 // Agents from different tools can share a tmux session, so the row has to say
-// which one it is.
+// which one it is. State files without a source predate it and are Pi's.
+const SOURCES = {
+  pi: { glyph: "π", short: "pi" },
+  "claude-code": { glyph: "✳", short: "cc" },
+  codex: { glyph: "◇", short: "codex" },
+};
+
 function sourceGlyph(agent) {
-  return isClaudeCode(agent) ? "✳" : "π";
+  return (SOURCES[agent.source] ?? SOURCES.pi).glyph;
 }
 
 function readAgents() {
@@ -596,6 +598,17 @@ if (command === "statusline") {
   } catch {
     // intentionally silent
   }
+} else if (command === "codex-hook") {
+  // Same contract as claude-hook: a broken hook must not break Codex.
+  try {
+    const { runCodexHook } = await import("../hooks/codex.js");
+    runCodexHook(cliArgs);
+  } catch {
+    // intentionally silent
+  }
+} else if (command === "install-codex-hooks") {
+  const { installCodexHooks } = await import("../hooks/install.js");
+  installCodexHooks(cliArgs);
 } else if (command === "install-claude-hooks") {
   const { installClaudeHooks } = await import("../hooks/install.js");
   installClaudeHooks(cliArgs);

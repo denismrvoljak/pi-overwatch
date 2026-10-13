@@ -20,6 +20,7 @@ Supported harnesses:
 
 - **Pi** — installed as an extension
 - **Claude Code** — installed as hooks, see [Claude Code](#claude-code)
+- **Codex** — installed as hooks, see [Codex](#codex)
 
 The dashboard doesn't care which one wrote a state file, so they share one view, one status line, and one keybinding.
 
@@ -108,7 +109,7 @@ That means if you use a tmux workflow like "one tmux session per project", the d
 ## Dashboard columns
 
 - `S` — status icon
-- `SRC` — which agent produced the row (`π` Pi, `✳` Claude Code)
+- `SRC` — which agent produced the row (`π` Pi, `✳` Claude Code, `◇` Codex)
 - `TARGET` — main identity for the agent
 - `WHERE` — source context, usually tmux pane info like `tmux 1.1`
 - `DOING` — current phase or tool
@@ -140,7 +141,7 @@ Overwatch statuses follow the [program status protocol](https://mitchellh.com/wr
 | `offline` | `clear` | the session ended |
 | `stale` | — | Overwatch only: computed by the dashboard, never reported |
 
-The `SRC` tool maps to `app` (`pi`, `claude-code`), the target label to `title`, and the summary to `msg`.
+The `SRC` tool maps to `app` (`pi`, `claude-code`, `codex`), the target label to `title`, and the summary to `msg`.
 
 ### Report status to your terminal
 
@@ -154,7 +155,7 @@ Opt in, and agents also report their status to the terminal they run in:
 }
 ```
 
-Each agent reports under its own record `id`. Terminals ignore OSCs they do not understand, so this is safe on any terminal. Pi writes to its own terminal; Claude Code hooks have no terminal of their own, so they write to the tty of the Claude Code process.
+Each agent reports under its own record `id`. Terminals ignore OSCs they do not understand, so this is safe on any terminal. Pi writes to its own terminal; Claude Code and Codex hooks have no terminal of their own, so they write to the tty of the agent process.
 
 Inside tmux, reports are wrapped in tmux passthrough and only reach the outer terminal with `set -g allow-passthrough on`. With `on`, tmux forwards them only from visible panes; use `all` to also forward from panes in other windows and sessions. The outer terminal sees one tmux client, so the per-agent `id` is what keeps agents apart there.
 
@@ -190,8 +191,9 @@ Rows are tagged by source in the `SRC` column and in the statusline:
 
 - `π` — Pi
 - `✳` — Claude Code
+- `◇` — Codex
 
-Hide the tag in the statusline with `--no-source`, or filter to one agent with `--source pi` / `--source claude-code`.
+Hide the tag in the statusline with `--no-source`, or filter to one agent with `--source pi` / `--source claude-code` / `--source codex`.
 
 ### How it differs from the Pi extension
 
@@ -214,6 +216,31 @@ Relatedly, `stale` now means "claimed to be working, then went silent". An agent
 | `blocked` (`permission`), or idle-with-no-change | `Notification` |
 | `done` + tmux notify | `Stop` |
 | `offline` | `SessionEnd` |
+
+## Codex
+
+Codex hooks use the same event names and payloads as Claude Code, so Codex rows come from the same producer.
+
+```bash
+pi-overwatch install-codex-hooks
+```
+
+This writes `~/.codex/hooks.json` (or `./.codex/hooks.json` with `--project`) and takes the same `--dry-run` and `--uninstall` flags. Codex asks you to review new hooks before it runs them, so restart Codex and approve them in `/hooks`. Hooks need Codex's `hooks` feature, which is on by default in current releases.
+
+Codex reports approval prompts through a dedicated `PermissionRequest` event, so blocked rows need no message matching. It also fires `Interrupt` when you stop a turn, which returns the row to `idle`.
+
+| Overwatch state | Codex hook |
+| --- | --- |
+| session registered, `idle` | `SessionStart` |
+| `working` / `thinking` | `UserPromptSubmit` |
+| `working` / `tool` | `PreToolUse` |
+| `blocked` (`permission`) | `PermissionRequest` |
+| back to `thinking`, or `error` | `PostToolUse` |
+| `idle` | `Interrupt` |
+| `done` + tmux notify | `Stop` |
+| `offline` | `SessionEnd` |
+
+The stale window defaults to 3 minutes, like Claude Code; change it with `codex.staleMs`.
 
 ## Configuration
 
@@ -259,6 +286,10 @@ Supported values:
 
 - `staleMs` — how long a Claude Code agent may go without a hook before it reads as stale (default `180000`)
 - `notify` / `bell` — same meaning as `tmux` below; set here to override for Claude Code only
+
+### `codex`
+
+- `staleMs`, `notify`, `bell` — same as `claudeCode`, for Codex sessions
 
 ### `programStatus`
 
@@ -423,7 +454,9 @@ pi-overwatch/
 ├── extensions/
 │   └── overwatch.ts
 ├── hooks/
+│   ├── agent-hook.js
 │   ├── claude-code.js
+│   ├── codex.js
 │   ├── install.js
 │   ├── program-status.js
 │   └── tmux-effects.js
@@ -439,5 +472,5 @@ pi-overwatch/
 - Overwatch does not rename tmux sessions or take over your workspace
 - it is intentionally minimal and focused on observability
 - Pi loads the extension directly from TypeScript
-- Claude Code drives state from hooks, so there is no process to keep running
+- Claude Code and Codex drive state from hooks, so there is no process to keep running
 - there is no build step

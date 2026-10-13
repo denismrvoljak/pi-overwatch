@@ -1,7 +1,7 @@
 {
   "name": "pi-overwatch",
   "version": "0.2.0",
-  "description": "Minimal TUI observability for Pi sessions, with tmux session awareness and cwd fallback",
+  "description": "Minimal TUI observability for Pi, Claude Code, and Codex sessions, with tmux session awareness and cwd fallback",
   "type": "module",
   "keywords": [
     "pi-package",
@@ -11,7 +11,9 @@
     "dashboard",
     "observability",
     "tmux",
-    "tui"
+    "tui",
+    "claude-code",
+    "codex"
   ],
   "bin": {
     "pi-overwatch": "./bin/pi-overwatch.js"
