@@ -2,7 +2,7 @@
 
 import { runAgentHook } from "./agent-hook.js";
 
-export const CLAUDE_CODE = { source: "claude-code", label: "claude", configKey: "claudeCode" };
+export const CLAUDE_CODE = { source: "claude-code", label: "claude", configKey: "claudeCode", processNames: ["claude"] };
 
 export const CLAUDE_HOOK_EVENTS = [
   "SessionStart",

@@ -137,6 +137,20 @@ function sourceGlyph(agent) {
   return (SOURCES[agent.source] ?? SOURCES.pi).glyph;
 }
 
+// Records live until the agent says it is gone (offline) or its process is,
+// like OSC 7501 records that are cleared when the program exits. Only checked
+// on this host; pids from elsewhere mean nothing here.
+function agentExited(state) {
+  if (!Number.isInteger(state.pid) || state.pid <= 1) return false;
+  if (state.hostname && state.hostname !== os.hostname()) return false;
+  try {
+    process.kill(state.pid, 0);
+    return false;
+  } catch (error) {
+    return error.code === "ESRCH";
+  }
+}
+
 function readAgents() {
   ensureDir();
   const files = fs.readdirSync(agentsDir).filter((file) => file.endsWith(".json"));
@@ -158,11 +172,13 @@ function readAgents() {
         // still write it as a flag on `working`.
         const blocked = state.status === "blocked" || Boolean(state.blocked);
         const canGoStale = state.status === "working" && !blocked && state.phase !== "waiting";
-        const computedStatus = blocked
-          ? "blocked"
-          : canGoStale && heartbeatAgeMs > staleMs
-            ? "stale"
-            : state.status;
+        const computedStatus = state.status === "offline" || agentExited(state)
+          ? "offline"
+          : blocked
+            ? "blocked"
+            : canGoStale && heartbeatAgeMs > staleMs
+              ? "stale"
+              : state.status;
         return {
           ...state,
           file: fullPath,
@@ -516,7 +532,9 @@ function printStatusline(args) {
   const options = parseStatuslineArgs(args);
   const style = (hex, text) => (options.plain ? text : `#[fg=${hex}]${text}#[fg=default]`);
   const now = Date.now();
-  const ttlMs = Number(process.env.PI_OVERWATCH_STATUS_TTL_MS || 10 * 60 * 1000);
+  // Off by default: a record stays until its agent ends. Set it to also drop
+  // entries that have not changed for that long.
+  const ttlMs = Number(process.env.PI_OVERWATCH_STATUS_TTL_MS) || Infinity;
   const config = readConfig();
   const colors = resolveStatusColors(config, options.theme);
 
@@ -526,9 +544,7 @@ function printStatusline(args) {
     if (options.session && agent.tmux?.sessionName !== options.session) return false;
     if (options.source && (agent.source || "pi") !== options.source) return false;
     if (agent.computedStatus === "working" || agent.computedStatus === "blocked") return true;
-    if (agent.computedStatus === "stale") return agent.heartbeatAgeMs <= ttlMs;
-    const age = now - new Date(agent.updatedAt || 0).getTime();
-    return age <= ttlMs;
+    return now - new Date(agent.updatedAt || 0).getTime() <= ttlMs;
   });
 
   if (agents.length === 0) {

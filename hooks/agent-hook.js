@@ -12,6 +12,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
 
+import { findAgentProcess } from "./agent-process.js";
 import { emitProgramStatus } from "./program-status.js";
 import { spawnTmuxEffects } from "./tmux-effects.js";
 
@@ -204,6 +205,13 @@ function resolveTmux(existing, event) {
   return getTmuxInfo() || cached;
 }
 
+// Same cadence as the tmux lookup: walk the process tree when a session starts
+// or a prompt arrives, reuse the result for tool hooks.
+function resolveAgentProcess(existing, event, harness) {
+  if (existing && !TMUX_LOOKUP_EVENTS.has(event)) return { pid: existing.pid, tty: existing.tty };
+  return findAgentProcess(process.ppid, harness.processNames);
+}
+
 function loadOrInit(rootDir, payload, event, harness) {
   const agentId = agentIdFor(payload, harness);
   const filePath = path.join(rootDir, "agents", `${agentId}.json`);
@@ -218,6 +226,7 @@ function loadOrInit(rootDir, payload, event, harness) {
 
   const cwd = payload.cwd || existing?.cwd || process.cwd();
   const tmux = resolveTmux(existing, event);
+  const agentProcess = resolveAgentProcess(existing, event, harness);
 
   // Before statuses followed OSC 7501, blocked was a flag on `working`.
   if (existing?.blocked) {
@@ -241,13 +250,14 @@ function loadOrInit(rootDir, payload, event, harness) {
       ...state,
       agentId,
       source: harness.source,
-      pid: process.ppid,
+      pid: agentProcess.pid,
       hostname: os.hostname(),
       projectName: path.basename(cwd),
       cwd,
       sessionFile: payload.transcript_path || state.sessionFile,
       sessionName: payload.session_id ? String(payload.session_id).slice(0, 8) : state.sessionName,
       tmux,
+      tty: agentProcess.tty,
       updatedAt: timestamp,
       lastHeartbeatAt: timestamp,
       queue: state.queue || { steering: 0, followUp: 0 },
@@ -306,7 +316,7 @@ function readStdin() {
   }
 }
 
-// harness: { source, label, configKey } — see claude-code.js and codex.js.
+// harness: { source, label, configKey, processNames } — see claude-code.js and codex.js.
 export function runAgentHook(harness, argv = []) {
   const raw = readStdin();
   let payload;
@@ -326,7 +336,7 @@ export function runAgentHook(harness, argv = []) {
 
   // Report to the terminal first, so a freshly resolved tty is cached too.
   const save = () => {
-    emitProgramStatus(state, { app: harness.source, enabled: config.programStatus, refreshTty: TMUX_LOOKUP_EVENTS.has(event) });
+    emitProgramStatus(state, { app: harness.source, enabled: config.programStatus });
     atomicWriteJson(filePath, state);
   };
 

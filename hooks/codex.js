@@ -5,7 +5,7 @@
 
 import { runAgentHook } from "./agent-hook.js";
 
-export const CODEX = { source: "codex", label: "codex", configKey: "codex" };
+export const CODEX = { source: "codex", label: "codex", configKey: "codex", processNames: ["codex"] };
 
 export const CODEX_HOOK_EVENTS = [
   "SessionStart",

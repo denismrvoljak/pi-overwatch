@@ -138,10 +138,12 @@ Overwatch statuses follow the [program status protocol](https://mitchellh.com/wr
 | `blocked` | `blocked` | with `kind`: `permission`, `question`, or `auth` |
 | `done` | `done` | |
 | `error` | `error` | |
-| `offline` | `clear` | the session ended |
+| `offline` | `clear` | the session ended, or its process is gone |
 | `stale` | — | Overwatch only: computed by the dashboard, never reported |
 
 The `SRC` tool maps to `app` (`pi`, `claude-code`, `codex`), the target label to `title`, and the summary to `msg`.
+
+A record lasts as long as its agent. It is removed when the agent reports that it is shutting down (Pi's `session_shutdown`, `SessionEnd` in Claude Code and Codex), or when the dashboard finds that the agent's process no longer exists, which covers crashes and killed terminals. Hooks record the pid of the `claude` / `codex` process (or the `node` running it), not of the short-lived hook.
 
 ### Report status to your terminal
 
@@ -378,7 +380,7 @@ Pin a theme or override individual colors in the config:
 
 Color keys: `working`, `stale`, `done`, `error`, `idle`, `dim`, `sep`.
 
-Finished and idle entries drop off after 10 minutes (`PI_OVERWATCH_STATUS_TTL_MS` to change).
+Entries stay until their agent ends, like OSC 7501 records: `idle`, `done`, and `error` remain visible until the next prompt replaces them or the session shuts down. Set `PI_OVERWATCH_STATUS_TTL_MS` to also drop entries that have not changed for that long.
 
 When two agents resolve to the same label (for example two Pi sessions in one tmux session), the statusline disambiguates them with the tmux window name and pane index: `personal:api.2 · personal:blog.1`. Unique labels stay unsuffixed.
 

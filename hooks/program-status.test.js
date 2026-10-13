@@ -86,3 +86,20 @@ test('Claude hook writes reports to the agent terminal when enabled', { skip: pr
   assert.match(readFileSync(out, 'latin1'), /\x1b\]7501;state=working:id=[0-9a-f]{12}:app=claude-code:title=[^:]+:msg=Z28=\x1b\\/);
   assert.ok(readState(root).tty.startsWith('/dev/'));
 }));
+
+test('records stay until the agent ends, then drop out', () => withRoot((root) => {
+  mkdirSync(join(root, 'agents'));
+  const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const write = (id, extra) => writeFileSync(join(root, `agents/${id}.json`), JSON.stringify({
+    agentId: id, sessionName: id, status: 'done', updatedAt: hourAgo, lastHeartbeatAt: hourAgo, ...extra,
+  }));
+  write('live', { pid: process.pid });
+  // A pid well above any real one: the agent died without saying so.
+  write('crashed', { pid: 2 ** 22 + 12345 });
+  write('ended', { status: 'offline', pid: process.pid });
+  const statusline = (extraEnv = {}) => execFileSync(process.execPath, [cli, 'statusline', '--plain', '--no-source'], {
+    encoding: 'utf8', env: { ...process.env, PI_OVERWATCH_DIR: root, HOME: root, TMUX: '', ...extraEnv },
+  });
+  assert.equal(statusline(), '✓ live\n');
+  assert.equal(statusline({ PI_OVERWATCH_STATUS_TTL_MS: '60000' }), '○ idle\n');
+}));
