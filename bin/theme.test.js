@@ -63,8 +63,11 @@ test('statusline shortens long labels and tool names', () => {
     assert.match(run(), /^● publish-the-ex…e-contr-2 slack_send_mess… \d\d:\d\d\n$/);
     assert.match(run('--max-label', '12'), /^● publish…tr-2 /);
     assert.match(run('--max-label', '0'), /^● publish-the-explicit-daisy-price-inference-contr-2 /);
+    assert.equal(run('--no-details'), '● publish-the-ex…e-contr-2\n');
     writeFileSync(join(root, 'config.json'), JSON.stringify({ statusline: { maxLabel: 8, identity: 'cwd' } }));
     assert.match(run(), /^● a /);
+    writeFileSync(join(root, 'config.json'), JSON.stringify({ statusline: { details: false } }));
+    assert.equal(run(), '● publish-the-ex…e-contr-2\n');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
