@@ -540,10 +540,11 @@ const DEFAULT_MAX_LABEL = 24;
 const MAX_DOING = 16;
 
 function parseStatuslineArgs(args) {
-  const options = { plain: false, session: undefined, max: 6, maxLabel: undefined, theme: undefined, source: undefined, showSource: undefined };
+  const options = { plain: false, session: undefined, max: 6, maxLabel: undefined, theme: undefined, source: undefined, showSource: undefined, showDetails: undefined };
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--plain") options.plain = true;
     else if (args[i] === "--no-source") options.showSource = false;
+    else if (args[i] === "--no-details") options.showDetails = false;
     else if (args[i] === "--source") options.source = args[++i];
     else if (args[i] === "--session") options.session = args[++i];
     else if (args[i] === "--max") options.max = Math.max(1, Number(args[++i]) || 6);
@@ -564,6 +565,8 @@ function printStatusline(args) {
   const colors = resolveStatusColors(config, options.theme);
 
   const showSource = options.showSource ?? config.statusline?.showSource ?? true;
+  // Off: each agent is just its status icon and name, no tool or timer.
+  const showDetails = options.showDetails ?? config.statusline?.details ?? true;
   // 0 turns truncation off.
   const maxLabel = options.maxLabel ?? config.statusline?.maxLabel ?? DEFAULT_MAX_LABEL;
   const identityMode = config.statusline?.identity ?? config.dashboard.identity;
@@ -600,7 +603,7 @@ function printStatusline(args) {
     const src = showSource ? `${style(colors.dim, sourceGlyph(agent))} ` : "";
     const summary = `${src}${style(hex, icon)} ${style(colors.text, identity)}`;
 
-    if (status === "working" || status === "stale" || status === "blocked") {
+    if (showDetails && (status === "working" || status === "stale" || status === "blocked")) {
       const doing = escapeTmux(truncateEnd(doingLabel(agent), MAX_DOING));
       const elapsed = agent.startedAt ? formatDuration(now - new Date(agent.startedAt).getTime()) : "";
       const detail = [doing, elapsed].filter(Boolean).join(" ");

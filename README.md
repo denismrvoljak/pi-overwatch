@@ -348,6 +348,7 @@ Flags:
 - `--session NAME` — only show agents in that tmux session
 - `--max N` — max entries before collapsing to `+N` (default 6)
 - `--max-label N` — shorten each agent's name to `N` characters (default 24, `0` for no limit)
+- `--no-details` — show only each agent's status icon and name, without the current tool and timer (config: `statusline.details: false`)
 - `--theme dark|light|auto` — color palette (default `auto`)
 - `--source pi|claude-code` — only show agents from that tool
 - `--no-source` — hide the `π` / `✳` source glyph
