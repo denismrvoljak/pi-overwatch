@@ -121,18 +121,34 @@ function getIdentityMeta(agent) {
     const pane = [win, agent.tmux.paneIndex].filter(Boolean).join(".");
     return pane ? `tmux ${pane}` : "tmux";
   }
-  if (agent.sessionName) return isClaudeCode(agent) ? "cc session" : "pi session";
+  if (agent.sessionName) return `${SOURCES[agent.source]?.short ?? "pi"} session`;
   return agent.cwd || "cwd";
 }
 
-function isClaudeCode(agent) {
-  return agent.source === "claude-code";
+// Agents from different tools can share a tmux session, so the row has to say
+// which one it is. State files without a source predate it and are Pi's.
+const SOURCES = {
+  pi: { glyph: "π", short: "pi" },
+  "claude-code": { glyph: "✳", short: "cc" },
+  codex: { glyph: "◇", short: "codex" },
+};
+
+function sourceGlyph(agent) {
+  return (SOURCES[agent.source] ?? SOURCES.pi).glyph;
 }
 
-// Agents from different tools can share a tmux session, so the row has to say
-// which one it is.
-function sourceGlyph(agent) {
-  return isClaudeCode(agent) ? "✳" : "π";
+// Records live until the agent says it is gone (offline) or its process is,
+// like OSC 7501 records that are cleared when the program exits. Only checked
+// on this host; pids from elsewhere mean nothing here.
+function agentExited(state) {
+  if (!Number.isInteger(state.pid) || state.pid <= 1) return false;
+  if (state.hostname && state.hostname !== os.hostname()) return false;
+  try {
+    process.kill(state.pid, 0);
+    return false;
+  } catch (error) {
+    return error.code === "ESRCH";
+  }
 }
 
 function readAgents() {
@@ -152,12 +168,17 @@ function readAgents() {
         // An agent waiting on a human isn't stale — it is correctly reporting
         // that it has nothing to report. Only silence while it claims to be
         // doing something counts.
-        const canGoStale = state.status === "working" && !state.blocked && state.phase !== "waiting";
-        const computedStatus = state.blocked
-          ? "blocked"
-          : canGoStale && heartbeatAgeMs > staleMs
-            ? "stale"
-            : state.status;
+        // `blocked` is a status since the OSC 7501 alignment; older producers
+        // still write it as a flag on `working`.
+        const blocked = state.status === "blocked" || Boolean(state.blocked);
+        const canGoStale = state.status === "working" && !blocked && state.phase !== "waiting";
+        const computedStatus = state.status === "offline" || agentExited(state)
+          ? "offline"
+          : blocked
+            ? "blocked"
+            : canGoStale && heartbeatAgeMs > staleMs
+              ? "stale"
+              : state.status;
         return {
           ...state,
           file: fullPath,
@@ -210,6 +231,15 @@ function formatAge(ms) {
   if (!Number.isFinite(ms)) return "--";
   const sec = Math.max(0, Math.floor(ms / 1000));
   return `${sec}s`;
+}
+
+// What the agent is doing, in the protocol's terms: what it is blocked on,
+// otherwise its tool or phase, plus progress when the producer reports one.
+function doingLabel(agent) {
+  const doing = agent.computedStatus === "blocked"
+    ? agent.kind || (agent.blocked ? "permission" : "waiting")
+    : agent.toolName || agent.phase || "waiting";
+  return Number.isInteger(agent.progress) ? `${doing} ${agent.progress}%` : doing;
 }
 
 function iconFor(status, colors) {
@@ -310,7 +340,7 @@ function render() {
         pad(fg(colors.dim, sourceGlyph(item)), 3),
         pad(fg(colors.text, identity), 22),
         pad(identityMeta, 10),
-        pad(item.toolName || item.phase || "waiting", 12),
+        pad(doingLabel(item), 12),
         pad(item.summary || "", Math.max(10, width - 76)),
         pad(queue, 5),
         pad(formatAge(item.heartbeatAgeMs), 6),
@@ -502,7 +532,9 @@ function printStatusline(args) {
   const options = parseStatuslineArgs(args);
   const style = (hex, text) => (options.plain ? text : `#[fg=${hex}]${text}#[fg=default]`);
   const now = Date.now();
-  const ttlMs = Number(process.env.PI_OVERWATCH_STATUS_TTL_MS || 10 * 60 * 1000);
+  // Off by default: a record stays until its agent ends. Set it to also drop
+  // entries that have not changed for that long.
+  const ttlMs = Number(process.env.PI_OVERWATCH_STATUS_TTL_MS) || Infinity;
   const config = readConfig();
   const colors = resolveStatusColors(config, options.theme);
 
@@ -512,9 +544,7 @@ function printStatusline(args) {
     if (options.session && agent.tmux?.sessionName !== options.session) return false;
     if (options.source && (agent.source || "pi") !== options.source) return false;
     if (agent.computedStatus === "working" || agent.computedStatus === "blocked") return true;
-    if (agent.computedStatus === "stale") return agent.heartbeatAgeMs <= ttlMs;
-    const age = now - new Date(agent.updatedAt || 0).getTime();
-    return age <= ttlMs;
+    return now - new Date(agent.updatedAt || 0).getTime() <= ttlMs;
   });
 
   if (agents.length === 0) {
@@ -543,7 +573,7 @@ function printStatusline(args) {
     const summary = `${src}${style(hex, icon)} ${style(colors.text, identity)}`;
 
     if (status === "working" || status === "stale" || status === "blocked") {
-      const doing = status === "blocked" ? "" : escapeTmux(agent.toolName || agent.phase || "");
+      const doing = escapeTmux(doingLabel(agent));
       const elapsed = agent.startedAt ? formatDuration(now - new Date(agent.startedAt).getTime()) : "";
       const detail = [doing, elapsed].filter(Boolean).join(" ");
       return `${summary}${detail ? style(colors.dim, ` ${detail}`) : ""}`;
@@ -584,9 +614,23 @@ if (command === "statusline") {
   } catch {
     // intentionally silent
   }
+} else if (command === "codex-hook") {
+  // Same contract as claude-hook: a broken hook must not break Codex.
+  try {
+    const { runCodexHook } = await import("../hooks/codex.js");
+    runCodexHook(cliArgs);
+  } catch {
+    // intentionally silent
+  }
+} else if (command === "install-codex-hooks") {
+  const { installCodexHooks } = await import("../hooks/install.js");
+  installCodexHooks(cliArgs);
 } else if (command === "install-claude-hooks") {
   const { installClaudeHooks } = await import("../hooks/install.js");
   installClaudeHooks(cliArgs);
+} else if (command === "install-tmux") {
+  const { installTmux } = await import("./install-tmux.js");
+  installTmux(cliArgs);
 } else {
   main();
 }
