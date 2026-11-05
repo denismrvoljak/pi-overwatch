@@ -93,7 +93,18 @@ function pad(text, width) {
 }
 
 function getCwdLabel(agent) {
-  return path.basename(agent.cwd || agent.projectName || agent.agentId);
+  const dir = agent.cwd || agent.projectName || agent.agentId;
+  const name = path.basename(dir);
+  // Normal clones keep the default branch at <project>/main.
+  return name === "main" && agent.cwd ? path.basename(path.dirname(dir)) : name;
+}
+
+// Task tooling names tmux sessions with UUIDs (pax-worker-<uuid>-g13), and
+// Claude Code and Codex sessions are named by a short session-id prefix.
+const GENERATED_NAME = /[0-9a-f]{8}-[0-9a-f]{4}-|^[0-9a-f]{8}$/;
+
+function readableName(name) {
+  return name && !GENERATED_NAME.test(name) ? name : undefined;
 }
 
 function getIdentityLabel(agent, identityMode) {
@@ -111,7 +122,7 @@ function getIdentityLabel(agent, identityMode) {
       return tmuxName || sessionName || cwdName;
     case "auto":
     default:
-      return tmuxName || sessionName || cwdName;
+      return readableName(tmuxName) || readableName(sessionName) || cwdName;
   }
 }
 
@@ -522,18 +533,9 @@ function escapeTmux(text) {
 
 // Keeps both ends: the start names the project, the end often tells apart
 // siblings (`…-2`, `:window.pane`).
-function truncateMiddle(text, max) {
-  const chars = Array.from(text);
-  if (!(max > 0) || chars.length <= max) return text;
-  if (max === 1) return "…";
-  const head = Math.ceil((max - 1) * 0.6);
-  const tail = max - 1 - head;
-  return chars.slice(0, head).join("") + "…" + (tail > 0 ? chars.slice(-tail).join("") : "");
-}
-
 function truncateEnd(text, max) {
   const chars = Array.from(text);
-  return chars.length <= max ? text : chars.slice(0, Math.max(0, max - 1)).join("") + "…";
+  return !(max > 0) || chars.length <= max ? text : chars.slice(0, Math.max(0, max - 1)).join("") + "…";
 }
 
 const DEFAULT_MAX_LABEL = 24;
@@ -593,13 +595,14 @@ function printStatusline(args) {
     const status = agent.computedStatus;
     const icon = STATUS_ICONS[status] || STATUS_ICONS.idle;
     const hex = colors[status] || colors.idle;
-    let label = getIdentityLabel(agent, identityMode);
-    if (labelCounts.get(label) > 1 && agent.tmux) {
+    const name = getIdentityLabel(agent, identityMode);
+    let label = truncateEnd(name, maxLabel);
+    if (labelCounts.get(name) > 1 && agent.tmux) {
       const win = agent.tmux.windowName || agent.tmux.windowIndex;
       const suffix = [win, agent.tmux.paneIndex].filter(Boolean).join(".");
       if (suffix) label = `${label}:${suffix}`;
     }
-    const identity = escapeTmux(truncateMiddle(label, maxLabel));
+    const identity = escapeTmux(label);
     const src = showSource ? `${style(colors.dim, sourceGlyph(agent))} ` : "";
     const summary = `${src}${style(hex, icon)} ${style(colors.text, identity)}`;
 
