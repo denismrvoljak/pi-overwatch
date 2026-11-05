@@ -1,5 +1,5 @@
 {
-  "name": "pi-overwatch",
+  "name": "agentwatch",
   "version": "0.2.0",
   "description": "Minimal TUI observability for Pi, Claude Code, and Codex sessions, with tmux session awareness and cwd fallback",
   "type": "module",
@@ -7,7 +7,7 @@
     "pi-package",
     "pi",
     "pi-extension",
-    "overwatch",
+    "agentwatch",
     "dashboard",
     "observability",
     "tmux",
@@ -16,6 +16,7 @@
     "codex"
   ],
   "bin": {
+    "agentwatch": "./bin/agentwatch.js",
     "pi-overwatch": "./bin/pi-overwatch.js"
   },
   "scripts": {
@@ -43,11 +44,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/denismrvoljak/pi-overwatch.git"
+    "url": "git+https://github.com/denismrvoljak/agentwatch.git"
   },
-  "homepage": "https://github.com/denismrvoljak/pi-overwatch",
+  "homepage": "https://github.com/denismrvoljak/agentwatch",
   "bugs": {
-    "url": "https://github.com/denismrvoljak/pi-overwatch/issues"
+    "url": "https://github.com/denismrvoljak/agentwatch/issues"
   },
   "license": "MIT"
 }

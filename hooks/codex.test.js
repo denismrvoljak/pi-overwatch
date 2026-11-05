@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
-const cli = new URL('../bin/pi-overwatch.js', import.meta.url).pathname;
+const cli = new URL('../bin/agentwatch.js', import.meta.url).pathname;
 
 function withRoot(fn) {
   const root = mkdtempSync(join(tmpdir(), 'overwatch-codex-'));
@@ -16,7 +16,7 @@ function withRoot(fn) {
   }
 }
 
-const env = (root) => ({ ...process.env, HOME: root, PI_OVERWATCH_DIR: root, TMUX: '' });
+const env = (root) => ({ ...process.env, HOME: root, AGENTWATCH_DIR: root, TMUX: '' });
 
 const hook = (root, payload) =>
   execFileSync(process.execPath, [cli, 'codex-hook'], {
@@ -78,7 +78,7 @@ test('install-codex-hooks writes ~/.codex/hooks.json and leaves other hooks alon
     'Interrupt', 'PermissionRequest', 'PostToolUse', 'PreToolUse', 'SessionEnd', 'SessionStart', 'Stop', 'UserPromptSubmit',
   ]);
   assert.equal(settings.hooks.PermissionRequest[0].matcher, '*');
-  assert.equal(settings.hooks.Stop[0].hooks[0].command, 'pi-overwatch codex-hook');
+  assert.equal(settings.hooks.Stop[0].hooks[0].command, 'agentwatch codex-hook');
   assert.equal(settings.hooks.Stop[0].hooks[0].timeout, 10);
   assert.equal(settings.hooks.SessionEnd[0].hooks[0].timeout, undefined);
 

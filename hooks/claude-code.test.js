@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
-const cli = new URL('../bin/pi-overwatch.js', import.meta.url).pathname;
+const cli = new URL('../bin/agentwatch.js', import.meta.url).pathname;
 
 function withRoot(fn) {
   const root = mkdtempSync(join(tmpdir(), 'overwatch-hook-'));
@@ -18,7 +18,7 @@ function withRoot(fn) {
 
 test('Claude hook returns quickly when the tmux server hangs', () => withRoot((root) => {
   writeFileSync(join(root, 'tmux'), '#!/bin/sh\nexec sleep 3\n', { mode: 0o755 });
-  const env = { ...process.env, HOME: root, PI_OVERWATCH_DIR: root, PATH: `${root}:${process.env.PATH}`, TMUX: '/tmp/fake,1,0', TMUX_PANE: '%1' };
+  const env = { ...process.env, HOME: root, AGENTWATCH_DIR: root, PATH: `${root}:${process.env.PATH}`, TMUX: '/tmp/fake,1,0', TMUX_PANE: '%1' };
   const payload = JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 's1', cwd: root, prompt: 'hello' });
 
   const started = Date.now();

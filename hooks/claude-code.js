@@ -1,4 +1,4 @@
-// Claude Code adapter. Wire it up with `pi-overwatch install-claude-hooks`.
+// Claude Code adapter. Wire it up with `agentwatch install-claude-hooks`.
 
 import { runAgentHook } from "./agent-hook.js";
 

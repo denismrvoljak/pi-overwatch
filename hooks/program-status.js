@@ -1,6 +1,6 @@
 // OSC 7501 program status reports (https://mitchellh.com/writing/program-status-osc7501).
 //
-// Overwatch states already follow the protocol's vocabulary; this turns one
+// agentwatch states already follow the protocol's vocabulary; this turns one
 // into the escape sequence so the terminal (Ghostty, Rex, …) can show it too.
 // Hook processes have no controlling tty, so the report is written to the tty
 // of the agent process that owns the hook instead (state.tty, see
@@ -18,7 +18,7 @@ function base64Text(value) {
   return clean ? Buffer.from(clean, "utf8").toString("base64") : undefined;
 }
 
-// `offline` is Overwatch's name for a finished session; the protocol clears it.
+// `offline` is agentwatch's name for a finished session; the protocol clears it.
 export function programStatusSequence({ status, kind, progress, app, id, title, msg }) {
   const pairs = [];
   if (status === "offline") {

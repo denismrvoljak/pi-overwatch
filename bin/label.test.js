@@ -19,8 +19,8 @@ test('statusline skips generated names for readable ones', () => {
     for (const [id, a] of Object.entries(agents)) {
       writeFileSync(join(root, 'agents', `${id}.json`), JSON.stringify({ agentId: id, status: 'done', updatedAt: now, ...a }));
     }
-    const out = execFileSync(process.execPath, [new URL('./pi-overwatch.js', import.meta.url).pathname, 'statusline', '--plain', '--no-source'], {
-      encoding: 'utf8', env: { ...process.env, HOME: root, PI_OVERWATCH_DIR: root },
+    const out = execFileSync(process.execPath, [new URL('./agentwatch.js', import.meta.url).pathname, 'statusline', '--plain', '--no-source'], {
+      encoding: 'utf8', env: { ...process.env, HOME: root, AGENTWATCH_DIR: root },
     });
     assert.match(out, /Make ML discovery agent…/);
     assert.match(out, /dotagents/);

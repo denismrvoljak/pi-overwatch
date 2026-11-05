@@ -1,4 +1,4 @@
-<svg width="1280" height="400" viewBox="0 0 1280 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="pi-overwatch — one status line for every session">
+<svg width="1280" height="400" viewBox="0 0 1280 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="agentwatch — one status line for every session">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1280" y2="400" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#14171C"/>
@@ -53,5 +53,5 @@
   <text x="472" y="230" font-family="'SF Mono','Menlo','Consolas',monospace" font-size="17" letter-spacing="2.2" fill="#7C8592">ONE STATUS LINE FOR EVERY SESSION</text>
 
   <!-- footer -->
-  <text x="1160" y="368" text-anchor="end" font-family="'SF Mono','Menlo','Consolas',monospace" font-size="16" fill="#3A4048">pi install npm:pi-overwatch</text>
+  <text x="1160" y="368" text-anchor="end" font-family="'SF Mono','Menlo','Consolas',monospace" font-size="16" fill="#3A4048">pi install npm:agentwatch</text>
 </svg>

@@ -1,4 +1,4 @@
-// Codex adapter. Wire it up with `pi-overwatch install-codex-hooks`.
+// Codex adapter. Wire it up with `agentwatch install-codex-hooks`.
 //
 // Codex hooks mirror Claude Code's names and payloads, and add a dedicated
 // PermissionRequest event, so blocked state needs no message sniffing.

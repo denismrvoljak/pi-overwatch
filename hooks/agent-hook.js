@@ -1,4 +1,4 @@
-// Hook-driven producer for Overwatch, shared by Claude Code and Codex.
+// Hook-driven producer for agentwatch, shared by Claude Code and Codex.
 //
 // Pi writes agent state from a long-lived extension; Claude Code and Codex
 // have no such process, so state is driven by hooks instead. Each hook is its
@@ -15,6 +15,7 @@ import { execFileSync } from "node:child_process";
 import { findAgentProcess } from "./agent-process.js";
 import { emitProgramStatus } from "./program-status.js";
 import { spawnTmuxEffects } from "./tmux-effects.js";
+import { stateDir } from "./state-dir.js";
 
 const MAX_EVENTS_FILE_BYTES = 5 * 1024 * 1024;
 const TRIM_EVENTS_TO_LAST_LINES = 2_000;
@@ -24,7 +25,7 @@ const TRIM_EVENTS_TO_LAST_LINES = 2_000;
 const DEFAULT_STALE_MS = 180_000;
 
 function getRootDir() {
-  return process.env.PI_OVERWATCH_DIR || path.join(os.homedir(), ".pi", "overwatch");
+  return stateDir();
 }
 
 function nowIso() {
