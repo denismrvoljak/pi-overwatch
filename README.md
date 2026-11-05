@@ -401,6 +401,16 @@ Entries stay until their agent ends, like OSC 7501 records: `idle`, `done`, and 
 
 When two agents resolve to the same label (for example two Pi sessions in one tmux session), the statusline disambiguates them with the tmux window name and pane index: `personal:api.2 · personal:blog.1`. Unique labels stay unsuffixed.
 
+### Session titles
+
+Task tooling such as Pax names tmux sessions like `pax-worker-<uuid>-g13`, and finds its workers by that name. agentwatch does not rename those sessions. It sets the `@pax-supervised-title` session option to the agent's conversation title instead. It only does this for sessions with a generated name. When several live agents share one of those sessions, it clears the option.
+
+To show the title in place of the session name, use this format wherever your status bar shows `#S`:
+
+```tmux
+#{?@pax-supervised-title,#{@pax-supervised-title},#S}
+```
+
 ### Dashboard keybindings
 
 ```tmux

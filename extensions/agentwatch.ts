@@ -6,6 +6,7 @@ import { execFileSync } from "node:child_process";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { programStatusSequence, wrapForTmux } from "../hooks/program-status.js";
 import { stateDir } from "../hooks/state-dir.js";
+import { tmuxTitleArgs, tmuxTitleFor } from "../hooks/names.js";
 
 // OSC 7501 program states, plus agentwatch's `offline` for an ended session.
 type AgentStatus = "idle" | "working" | "done" | "blocked" | "error" | "offline";
@@ -263,6 +264,14 @@ export default function agentwatch(pi: ExtensionAPI) {
   let ttyFd: number | undefined;
   let lastReportKey: string | undefined;
 
+  // Pax names may change mid-session, so pick the name up again each turn.
+  function syncSessionTitle(): void {
+    if (!state) return;
+    state.sessionName = pi.getSessionName() ?? state.sessionName;
+    const label = tmuxTitleFor(state, agentsDir);
+    if (label) tmuxRun(tmuxTitleArgs(label));
+  }
+
   // Pi owns its terminal, so the report goes straight to /dev/tty. Writes are
   // synchronous and land between TUI frames.
   function reportProgramStatus(): void {
@@ -414,7 +423,9 @@ export default function agentwatch(pi: ExtensionAPI) {
       queue: { steering: 0, followUp: 0 },
     };
 
+    syncSessionTitle();
     flush(ctx);
+    if (state.tmux) tmuxRefreshStatus();
     emitEvent("session_start", {
       reason: _event.reason,
       identity: getIdentityLabel(state),
@@ -430,6 +441,7 @@ export default function agentwatch(pi: ExtensionAPI) {
     state.summary = state.summary ?? "Working";
     state.startedAt = nowIso();
     state.finishedAt = undefined;
+    syncSessionTitle();
     touch(ctx);
     startHeartbeat(ctx);
     emitEvent("agent_start", { summary: state.summary });

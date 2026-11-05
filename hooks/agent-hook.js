@@ -16,6 +16,7 @@ import { findAgentProcess } from "./agent-process.js";
 import { emitProgramStatus } from "./program-status.js";
 import { spawnTmuxEffects } from "./tmux-effects.js";
 import { stateDir } from "./state-dir.js";
+import { tmuxTitleFor } from "./names.js";
 
 const MAX_EVENTS_FILE_BYTES = 5 * 1024 * 1024;
 const TRIM_EVENTS_TO_LAST_LINES = 2_000;
@@ -367,6 +368,10 @@ export function runAgentHook(harness, argv = []) {
   const config = readConfig(rootDir, harness);
   const { filePath, state } = loadOrInit(rootDir, payload, event, harness);
   state.staleMs = config.staleMs;
+
+  // Same cadence as reading the title; setting it again also covers a restarted tmux server.
+  const sessionTitle = TITLE_EVENTS.has(event) ? tmuxTitleFor(state, path.join(rootDir, "agents")) : undefined;
+  if (sessionTitle) spawnTmuxEffects({ sessionTitle, refresh: true });
 
   // Report to the terminal first, so a freshly resolved tty is cached too.
   const save = () => {

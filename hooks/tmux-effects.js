@@ -9,6 +9,8 @@ import fs from "node:fs";
 import { execFileSync, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+import { tmuxTitleArgs } from "./names.js";
+
 function tmuxRun(args) {
   try {
     return execFileSync("tmux", args, {
@@ -47,7 +49,8 @@ function ringPaneBell(paneId) {
   }
 }
 
-export function runTmuxEffects({ refresh = false, message, paneId, bell = false } = {}) {
+export function runTmuxEffects({ refresh = false, message, paneId, bell = false, sessionTitle } = {}) {
+  if (sessionTitle) tmuxRun(tmuxTitleArgs(sessionTitle));
   const clients = listClients();
   if (refresh) {
     for (const client of clients) tmuxRun(["refresh-client", "-S", "-t", client]);

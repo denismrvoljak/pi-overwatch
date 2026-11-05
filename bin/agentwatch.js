@@ -7,6 +7,7 @@ import path from "node:path";
 import process from "node:process";
 import readline from "node:readline";
 import { setting, stateDir } from "../hooks/state-dir.js";
+import { readableName } from "../hooks/names.js";
 
 const rootDir = stateDir();
 const agentsDir = path.join(rootDir, "agents");
@@ -100,13 +101,6 @@ function getCwdLabel(agent) {
   return name === "main" && agent.cwd ? path.basename(path.dirname(dir)) : name;
 }
 
-// Task tooling names tmux sessions with UUIDs (pax-worker-<uuid>-g13), and
-// hook-based agent sessions are named by a short session-id prefix.
-const GENERATED_NAME = /[0-9a-f]{8}-[0-9a-f]{4}-|^[0-9a-f]{8}$/;
-
-function readableName(name) {
-  return name && !GENERATED_NAME.test(name) ? name : undefined;
-}
 
 function getIdentityLabel(agent, identityMode) {
   const tmuxName = agent.tmux?.sessionName;
