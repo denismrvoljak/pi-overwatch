@@ -274,7 +274,7 @@ Example:
 
 Supported values:
 
-- `"auto"` — tmux session name, then agent session name, then cwd basename
+- `"auto"` — tmux session name, then agent session name, then project folder. Generated names are skipped: tmux sessions with a UUID (`pax-worker-<uuid>-g13`) and session-id prefixes (`1767de67`). A `main` checkout shows its parent folder, so `~/github/pax/main` reads as `pax`.
 - `"tmux"` — prefer tmux session name
 - `"cwd"` — show cwd basename only
 - `"both"` — show tmux session name plus cwd basename when they differ, for example `api · my-monorepo`
@@ -384,7 +384,7 @@ Color keys: `working`, `stale`, `done`, `error`, `idle`, `dim`, `sep`.
 
 #### Long names
 
-Names longer than 24 characters are shortened in the middle, keeping the start and the end, which often tells siblings apart: `publish-the-explicit-daisy-price-inference-contr-2` becomes `publish-the-ex…e-contr-2`. The current tool is capped at 16 characters, and MCP tools show only their tool name. Change the limit, or name agents differently in the statusline than in the dashboard:
+Names longer than 24 characters are cut at the end: `Make ML discovery agent-friendly` becomes `Make ML discovery agent…`. When two agents share a name, each gets its tmux window and pane after the cut, for example `Make ML discovery agent…:node.1`. The current tool is capped at 16 characters, and MCP tools show only their tool name. Change the limit, or name agents differently in the statusline than in the dashboard:
 
 ```json
 {

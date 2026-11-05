@@ -60,14 +60,14 @@ test('statusline shortens long labels and tool names', () => {
     const run = (...args) => execFileSync(process.execPath, [new URL('./pi-overwatch.js', import.meta.url).pathname, 'statusline', '--plain', '--no-source', ...args], {
       encoding: 'utf8', env: { ...process.env, HOME: root, PI_OVERWATCH_DIR: root, TMUX: '' },
     });
-    assert.match(run(), /^● publish-the-ex…e-contr-2 slack_send_mess… \d\d:\d\d\n$/);
-    assert.match(run('--max-label', '12'), /^● publish…tr-2 /);
+    assert.match(run(), /^● publish-the-explicit-da… slack_send_mess… \d\d:\d\d\n$/);
+    assert.match(run('--max-label', '12'), /^● publish-the… /);
     assert.match(run('--max-label', '0'), /^● publish-the-explicit-daisy-price-inference-contr-2 /);
-    assert.equal(run('--no-details'), '● publish-the-ex…e-contr-2\n');
+    assert.equal(run('--no-details'), '● publish-the-explicit-da…\n');
     writeFileSync(join(root, 'config.json'), JSON.stringify({ statusline: { maxLabel: 8, identity: 'cwd' } }));
     assert.match(run(), /^● a /);
     writeFileSync(join(root, 'config.json'), JSON.stringify({ statusline: { details: false } }));
-    assert.equal(run(), '● publish-the-ex…e-contr-2\n');
+    assert.equal(run(), '● publish-the-explicit-da…\n');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
