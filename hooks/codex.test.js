@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -87,3 +87,18 @@ test('install-codex-hooks writes ~/.codex/hooks.json and leaves other hooks alon
   run('--uninstall');
   assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), {});
 }));
+
+test('Codex hook names the agent after the thread name', () => {
+  const root = mkdtempSync(join(tmpdir(), 'agentwatch-codex-title-'));
+  try {
+    writeFileSync(join(root, 'session_index.jsonl'), '{"id":"other","thread_name":"Not this"}\n{"id":"thread-1","thread_name":"Fix the build"}\n');
+    execFileSync(process.execPath, [cli, 'codex-hook'], {
+      input: JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 'thread-1', cwd: root, prompt: 'go' }),
+      env: { ...env(root), CODEX_HOME: root },
+    });
+    const [file] = readdirSync(join(root, 'agents'));
+    assert.equal(JSON.parse(readFileSync(join(root, 'agents', file), 'utf8')).sessionName, 'Fix the build');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

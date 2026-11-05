@@ -41,3 +41,25 @@ test('installer gives hooks a 10s backstop timeout', () => withRoot((root) => {
     for (const entry of entries) assert.equal(entry.hooks[0].timeout, 10);
   }
 }));
+
+test('Claude hook names the agent after the conversation title', () => withRoot((root) => {
+  const transcript = join(root, 't.jsonl');
+  const env = { ...process.env, HOME: root, AGENTWATCH_DIR: root, TMUX: '' };
+  const fire = (event) => {
+    execFileSync(process.execPath, [cli, 'claude-hook'], { input: JSON.stringify({ hook_event_name: event, session_id: 'abcdef1234', cwd: root, transcript_path: transcript }), env });
+    const [file] = readdirSync(join(root, 'agents'));
+    return JSON.parse(readFileSync(join(root, 'agents', file), 'utf8')).sessionName;
+  };
+  const line = (type, key, name) => JSON.stringify({ type, [key]: name }) + '\n';
+
+  writeFileSync(transcript, '{"type":"user"}\n');
+  assert.equal(fire('UserPromptSubmit'), 'abcdef12');
+  writeFileSync(transcript, line('ai-title', 'aiTitle', 'Generated title'));
+  assert.equal(fire('Stop'), 'Generated title');
+  writeFileSync(transcript, line('ai-title', 'aiTitle', 'Generated title') + line('custom-title', 'customTitle', 'My title'));
+  assert.equal(fire('UserPromptSubmit'), 'My title');
+  // The custom title scrolled out of the part we read: keep it over a generated one.
+  writeFileSync(transcript, line('custom-title', 'customTitle', 'My title') + 'x'.repeat(300 * 1024) + '\n' + line('ai-title', 'aiTitle', 'Newer generated'));
+  assert.equal(fire('Stop'), 'My title');
+  assert.equal(fire('PreToolUse'), 'My title');
+}));

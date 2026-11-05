@@ -473,7 +473,8 @@ Each agent writes `agents/<agent-id>.json` and replaces the whole file on every 
 | `source` | `pi`, `claude-code` or `codex`; missing means `pi` |
 | `pid`, `hostname` | Agent process; readers mark it `offline` when the pid is gone on this host |
 | `cwd`, `projectName` | Working folder and its last part |
-| `sessionName` | Name of the conversation, if the harness has one |
+| `sessionName` | Name of the conversation: the Pi session name, the Claude Code title, or the Codex thread name. Hooks fall back to the first 8 characters of the session id |
+| `titleKind` | `custom` when the user named the conversation, `ai` when the harness generated the name |
 | `sessionFile` | Transcript path, if any |
 | `tmux` | `sessionName`, `windowIndex`, `windowName`, `paneIndex`, `paneId`, `panePath`, when running in tmux |
 | `status` | `idle`, `working`, `blocked`, `done`, `error` or `offline` (OSC 7501 states, plus `offline`) |
