@@ -12,7 +12,7 @@ test('statusline skips generated names for readable ones', () => {
     const now = new Date().toISOString();
     const agents = {
       pax: { tmux: { sessionName: 'pax-worker-0303f0c0-22a7-4012-9822-931c2e65909f-g13' }, sessionName: 'Make ML discovery agent-friendly with reproducible runs', cwd: '/w/dat-1554-make-ml' },
-      cc: { source: 'claude-code', sessionName: '1767de67', cwd: '/home/x/github/dotagents' },
+      cc: { sessionName: '1767de67', cwd: '/home/x/github/dotagents' },
       main: { cwd: '/home/x/github/pax/main' },
       named: { tmux: { sessionName: 'personal' }, sessionName: 'abc', cwd: '/home/x' },
     };

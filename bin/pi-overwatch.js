@@ -100,7 +100,7 @@ function getCwdLabel(agent) {
 }
 
 // Task tooling names tmux sessions with UUIDs (pax-worker-<uuid>-g13), and
-// Claude Code and Codex sessions are named by a short session-id prefix.
+// hook-based agent sessions are named by a short session-id prefix.
 const GENERATED_NAME = /[0-9a-f]{8}-[0-9a-f]{4}-|^[0-9a-f]{8}$/;
 
 function readableName(name) {
