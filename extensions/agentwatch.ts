@@ -5,8 +5,10 @@ import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { programStatusSequence, wrapForTmux } from "../hooks/program-status.js";
+import { stateDir } from "../hooks/state-dir.js";
+import { tmuxTitleArgs, tmuxTitleFor } from "../hooks/names.js";
 
-// OSC 7501 program states, plus Overwatch's `offline` for an ended session.
+// OSC 7501 program states, plus agentwatch's `offline` for an ended session.
 type AgentStatus = "idle" | "working" | "done" | "blocked" | "error" | "offline";
 type AgentPhase = "thinking" | "tool" | "waiting" | "queueing";
 
@@ -55,7 +57,7 @@ const MAX_EVENTS_FILE_BYTES = 5 * 1024 * 1024;
 const TRIM_EVENTS_TO_LAST_LINES = 2_000;
 
 function getRootDir(): string {
-  return process.env.PI_OVERWATCH_DIR || path.join(os.homedir(), ".pi", "overwatch");
+  return stateDir();
 }
 
 function sanitizeSummary(value: unknown, max = 120): string | undefined {
@@ -250,7 +252,7 @@ function tmuxRefreshStatus(): void {
   }
 }
 
-export default function overwatch(pi: ExtensionAPI) {
+export default function agentwatch(pi: ExtensionAPI) {
   const rootDir = getRootDir();
   const agentsDir = path.join(rootDir, "agents");
   const eventsFile = path.join(rootDir, "events.jsonl");
@@ -261,6 +263,14 @@ export default function overwatch(pi: ExtensionAPI) {
   let heartbeat: NodeJS.Timeout | undefined;
   let ttyFd: number | undefined;
   let lastReportKey: string | undefined;
+
+  // Pax names may change mid-session, so pick the name up again each turn.
+  function syncSessionTitle(): void {
+    if (!state) return;
+    state.sessionName = pi.getSessionName() ?? state.sessionName;
+    const label = tmuxTitleFor(state, agentsDir);
+    if (label) tmuxRun(tmuxTitleArgs(label));
+  }
 
   // Pi owns its terminal, so the report goes straight to /dev/tty. Writes are
   // synchronous and land between TUI frames.
@@ -342,7 +352,7 @@ export default function overwatch(pi: ExtensionAPI) {
             ? theme.fg("error", "!")
             : theme.fg("dim", "○");
     const body = `${getIdentityLabel(state)} · ${state.phase}${state.toolName ? `:${state.toolName}` : ""}`;
-    ctx.ui.setStatus("overwatch", `${icon}${theme.fg("dim", ` ${body}`)}`);
+    ctx.ui.setStatus("agentwatch", `${icon}${theme.fg("dim", ` ${body}`)}`);
   }
 
   function flush(ctx?: any): void {
@@ -375,15 +385,15 @@ export default function overwatch(pi: ExtensionAPI) {
     }, HEARTBEAT_MS);
   }
 
-  pi.registerCommand("overwatch", {
-    description: "Show Overwatch state file location",
+  pi.registerCommand("agentwatch", {
+    description: "Show agentwatch state file location",
     handler: async (_args, ctx) => {
       if (!state) {
-        ctx.ui.notify("Overwatch has not initialized yet", "warning");
+        ctx.ui.notify("agentwatch has not initialized yet", "warning");
         return;
       }
       const filePath = agentFilePath();
-      ctx.ui.notify(filePath ? `Overwatch: ${filePath}` : "Overwatch unavailable", "info");
+      ctx.ui.notify(filePath ? `agentwatch: ${filePath}` : "agentwatch unavailable", "info");
     },
   });
 
@@ -413,7 +423,9 @@ export default function overwatch(pi: ExtensionAPI) {
       queue: { steering: 0, followUp: 0 },
     };
 
+    syncSessionTitle();
     flush(ctx);
+    if (state.tmux) tmuxRefreshStatus();
     emitEvent("session_start", {
       reason: _event.reason,
       identity: getIdentityLabel(state),
@@ -429,6 +441,7 @@ export default function overwatch(pi: ExtensionAPI) {
     state.summary = state.summary ?? "Working";
     state.startedAt = nowIso();
     state.finishedAt = undefined;
+    syncSessionTitle();
     touch(ctx);
     startHeartbeat(ctx);
     emitEvent("agent_start", { summary: state.summary });

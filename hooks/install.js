@@ -1,6 +1,6 @@
-// Registers the Overwatch producer in Claude Code's settings.json or Codex's
+// Registers the agentwatch producer in Claude Code's settings.json or Codex's
 // hooks.json. Both use the same { hooks: { Event: [entry] } } shape.
-// Idempotent: re-running replaces Overwatch entries and leaves every other
+// Idempotent: re-running replaces agentwatch entries (old pi-overwatch ones too) and leaves every other
 // hook you have configured untouched.
 
 import fs from "node:fs";
@@ -16,7 +16,7 @@ const MATCHER_EVENTS = new Set(["PreToolUse", "PermissionRequest", "PostToolUse"
 const TARGETS = {
   claude: {
     name: "Claude Code",
-    command: "pi-overwatch claude-hook",
+    command: "agentwatch claude-hook",
     events: CLAUDE_HOOK_EVENTS,
     dir: ".claude",
     file: "settings.json",
@@ -24,7 +24,7 @@ const TARGETS = {
   },
   codex: {
     name: "Codex",
-    command: "pi-overwatch codex-hook",
+    command: "agentwatch codex-hook",
     events: CODEX_HOOK_EVENTS,
     dir: ".codex",
     file: "hooks.json",
@@ -39,8 +39,8 @@ function settingsPath(target, scope) {
   return path.join(base, target.dir, target.file);
 }
 
-function isOverwatchEntry(entry) {
-  return (entry?.hooks || []).some((hook) => String(hook?.command || "").includes("pi-overwatch"));
+function isAgentwatchEntry(entry) {
+  return (entry?.hooks || []).some((hook) => /\b(agentwatch|pi-overwatch) /.test(String(hook?.command || "")));
 }
 
 function buildEntry(target, event) {
@@ -71,7 +71,7 @@ function installHooks(target, args) {
   settings.hooks = settings.hooks || {};
 
   for (const event of target.events) {
-    const existing = (settings.hooks[event] || []).filter((entry) => !isOverwatchEntry(entry));
+    const existing = (settings.hooks[event] || []).filter((entry) => !isAgentwatchEntry(entry));
     if (remove) {
       if (existing.length > 0) settings.hooks[event] = existing;
       else delete settings.hooks[event];
@@ -96,7 +96,7 @@ function installHooks(target, args) {
   fs.writeFileSync(filePath, output, "utf8");
 
   const verb = remove ? "Removed" : "Installed";
-  process.stdout.write(`${verb} Overwatch ${target.name} hooks in ${filePath}\n`);
+  process.stdout.write(`${verb} agentwatch ${target.name} hooks in ${filePath}\n`);
   process.stdout.write(`Events: ${target.events.join(", ")}\n`);
   if (!remove) process.stdout.write(`${target.restartHint}\n`);
 }

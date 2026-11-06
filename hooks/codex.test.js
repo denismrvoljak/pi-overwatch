@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
-const cli = new URL('../bin/pi-overwatch.js', import.meta.url).pathname;
+const cli = new URL('../bin/agentwatch.js', import.meta.url).pathname;
 
 function withRoot(fn) {
   const root = mkdtempSync(join(tmpdir(), 'overwatch-codex-'));
@@ -16,7 +16,7 @@ function withRoot(fn) {
   }
 }
 
-const env = (root) => ({ ...process.env, HOME: root, PI_OVERWATCH_DIR: root, TMUX: '' });
+const env = (root) => ({ ...process.env, HOME: root, AGENTWATCH_DIR: root, TMUX: '' });
 
 const hook = (root, payload) =>
   execFileSync(process.execPath, [cli, 'codex-hook'], {
@@ -78,7 +78,7 @@ test('install-codex-hooks writes ~/.codex/hooks.json and leaves other hooks alon
     'Interrupt', 'PermissionRequest', 'PostToolUse', 'PreToolUse', 'SessionEnd', 'SessionStart', 'Stop', 'UserPromptSubmit',
   ]);
   assert.equal(settings.hooks.PermissionRequest[0].matcher, '*');
-  assert.equal(settings.hooks.Stop[0].hooks[0].command, 'pi-overwatch codex-hook');
+  assert.equal(settings.hooks.Stop[0].hooks[0].command, 'agentwatch codex-hook');
   assert.equal(settings.hooks.Stop[0].hooks[0].timeout, 10);
   assert.equal(settings.hooks.SessionEnd[0].hooks[0].timeout, undefined);
 
@@ -87,3 +87,18 @@ test('install-codex-hooks writes ~/.codex/hooks.json and leaves other hooks alon
   run('--uninstall');
   assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), {});
 }));
+
+test('Codex hook names the agent after the thread name', () => {
+  const root = mkdtempSync(join(tmpdir(), 'agentwatch-codex-title-'));
+  try {
+    writeFileSync(join(root, 'session_index.jsonl'), '{"id":"other","thread_name":"Not this"}\n{"id":"thread-1","thread_name":"Fix the build"}\n');
+    execFileSync(process.execPath, [cli, 'codex-hook'], {
+      input: JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 'thread-1', cwd: root, prompt: 'go' }),
+      env: { ...env(root), CODEX_HOME: root },
+    });
+    const [file] = readdirSync(join(root, 'agents'));
+    assert.equal(JSON.parse(readFileSync(join(root, 'agents', file), 'utf8')).sessionName, 'Fix the build');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

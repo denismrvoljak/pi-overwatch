@@ -1,20 +1,20 @@
-# pi-overwatch
+# agentwatch
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/banner-dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="assets/banner-light.svg">
-  <img alt="pi-overwatch" src="assets/banner-dark.svg">
+  <img alt="agentwatch" src="assets/banner-dark.svg">
 </picture>
 
 ```bash
-pi install npm:pi-overwatch
+pi install npm:agentwatch
 ```
 
 Minimal observability for your coding harnesses.
 
-I built `pi-overwatch` because I wanted a simple way to see what my coding sessions were doing while multitasking.
+I built `agentwatch` because I wanted a simple way to see what my coding sessions were doing while multitasking.
 
-I use tmux with a "one session per project" setup, so Overwatch uses the tmux session name as the main target label when the agent is running inside tmux. If you're not using tmux, it falls back to the directory where you launched it.
+I use tmux with a "one session per project" setup, so agentwatch uses the tmux session name as the main target label when the agent is running inside tmux. If you're not using tmux, it falls back to the directory where you launched it.
 
 Supported harnesses:
 
@@ -38,7 +38,7 @@ Watch the demo video on YouTube:
 
 ## Screenshot
 
-![pi-overwatch dashboard](./assets/pi-overwatch.png)
+![agentwatch dashboard](./assets/agentwatch.png)
 
 ## What it shows
 
@@ -49,7 +49,7 @@ Watch the demo video on YouTube:
 - which sessions are blocked waiting on you
 - queue counts, heartbeat age, and runtime
 - stale-session detection
-- simple local config in `~/.pi/overwatch/config.json`
+- simple local config in `~/.local/state/agentwatch/config.json`
 
 ## Demo
 https://github.com/user-attachments/assets/fda9077b-3a37-4d1a-8adc-827d17dc7f53
@@ -59,44 +59,44 @@ https://github.com/user-attachments/assets/fda9077b-3a37-4d1a-8adc-827d17dc7f53
 ### From npm
 
 ```bash
-pi install npm:pi-overwatch
+pi install npm:agentwatch
 ```
 
 ### From GitHub
 
 ```bash
-pi install https://github.com/denismrvoljak/pi-overwatch
+pi install https://github.com/denismrvoljak/agentwatch
 ```
 
 ### Project-local install
 
 ```bash
-pi install -l npm:pi-overwatch
+pi install -l npm:agentwatch
 ```
 
 ### One-off test
 
 ```bash
-pi -e npm:pi-overwatch
+pi -e npm:agentwatch
 ```
 
-## Run Overwatch
+## Run agentwatch
 
 Open another terminal pane or window and run:
 
 ```bash
-pi-overwatch
+agentwatch
 ```
 
 If you want to run it directly from the repo:
 
 ```bash
-node /absolute/path/to/pi-overwatch/bin/pi-overwatch.js
+node /absolute/path/to/agentwatch/bin/agentwatch.js
 ```
 
 ## How targeting works
 
-Overwatch is tmux-aware, not tmux-dependent.
+agentwatch is tmux-aware, not tmux-dependent.
 
 Target resolution is:
 
@@ -129,9 +129,9 @@ Status icons:
 
 ## Program status (OSC 7501)
 
-Overwatch statuses follow the [program status protocol](https://mitchellh.com/writing/program-status-osc7501) ([spec](https://www.superlogical.com/rex/docs/build/program-status)), so a state means the same thing in the dashboard as it does to a terminal that supports it.
+agentwatch statuses follow the [program status protocol](https://mitchellh.com/writing/program-status-osc7501) ([spec](https://www.superlogical.com/rex/docs/build/program-status)), so a state means the same thing in the dashboard as it does to a terminal that supports it.
 
-| Overwatch | OSC 7501 | Notes |
+| agentwatch | OSC 7501 | Notes |
 | --- | --- | --- |
 | `idle` | `idle` | waiting for your next instruction |
 | `working` | `working` | `progress` (0–100) is shown when a producer sets it |
@@ -139,7 +139,7 @@ Overwatch statuses follow the [program status protocol](https://mitchellh.com/wr
 | `done` | `done` | |
 | `error` | `error` | |
 | `offline` | `clear` | the session ended, or its process is gone |
-| `stale` | — | Overwatch only: computed by the dashboard, never reported |
+| `stale` | — | agentwatch only: computed by the dashboard, never reported |
 
 The `SRC` tool maps to `app` (`pi`, `claude-code`, `codex`), the target label to `title`, and the summary to `msg`.
 
@@ -161,7 +161,7 @@ Each agent reports under its own record `id`. Terminals ignore OSCs they do not 
 
 Inside tmux, reports are wrapped in tmux passthrough and only reach the outer terminal with `set -g allow-passthrough on`. With `on`, tmux forwards them only from visible panes; use `all` to also forward from panes in other windows and sessions. The outer terminal sees one tmux client, so the per-agent `id` is what keeps agents apart there.
 
-Status still flows one way: terminals cannot be asked for the records they hold, so the dashboard and tmux row keep reading Overwatch's own state files.
+Status still flows one way: terminals cannot be asked for the records they hold, so the dashboard and tmux row keep reading agentwatch's own state files.
 
 To check whether your terminal supports the protocol, run this outside tmux. A supporting terminal answers with `?`:
 
@@ -171,23 +171,23 @@ printf '\e]7501;?\e\\'; read -rs -t 1 -d '\' reply; printf '%q\n' "$reply"
 
 ## Claude Code
 
-Overwatch also tracks Claude Code sessions in the same dashboard and statusline. The dashboard does not care what produced a state file, so both agents share one view, one tmux binding, and one status line.
+agentwatch also tracks Claude Code sessions in the same dashboard and statusline. The dashboard does not care what produced a state file, so both agents share one view, one tmux binding, and one status line.
 
 Install the hooks:
 
 ```bash
-pi-overwatch install-claude-hooks
+agentwatch install-claude-hooks
 ```
 
 Flags:
 
 - `--project` — write to `./.claude/settings.json` instead of `~/.claude/settings.json`
 - `--dry-run` — print the resulting settings without writing
-- `--uninstall` — remove Overwatch hooks again
+- `--uninstall` — remove agentwatch hooks again
 
 The command is idempotent, backs up the previous file to `settings.json.overwatch-backup`, and leaves any other hooks you already have configured untouched. Restart Claude Code afterwards.
 
-Claude Code waits for each hook before continuing, so the hook only writes the state file and returns. tmux status refreshes, notifications, and the bell run in a detached process, which keeps a slow tmux server from stalling your prompt. Installed hooks get a 10s timeout as a backstop; re-run `pi-overwatch install-claude-hooks` after upgrading to pick it up.
+Claude Code waits for each hook before continuing, so the hook only writes the state file and returns. tmux status refreshes, notifications, and the bell run in a detached process, which keeps a slow tmux server from stalling your prompt. Installed hooks get a 10s timeout as a backstop; re-run `agentwatch install-claude-hooks` after upgrading to pick it up.
 
 Rows are tagged by source in the `SRC` column and in the statusline:
 
@@ -199,7 +199,7 @@ Hide the tag in the statusline with `--no-source`, or filter to one agent with `
 
 ### How it differs from the Pi extension
 
-Pi runs Overwatch as a long-lived extension, so it can heartbeat every 5 seconds. Claude Code has no such process — each hook is its own short-lived invocation — so there is nothing to heartbeat from. Instead the Claude Code producer writes a `staleMs` field on its own state, and the dashboard honours that per agent rather than applying the global `PI_OVERWATCH_STALE_MS`. Default is 3 minutes; change it with `claudeCode.staleMs` in the config.
+Pi runs agentwatch as a long-lived extension, so it can heartbeat every 5 seconds. Claude Code has no such process — each hook is its own short-lived invocation — so there is nothing to heartbeat from. Instead the Claude Code producer writes a `staleMs` field on its own state, and the dashboard honours that per agent rather than applying the global `AGENTWATCH_STALE_MS`. Default is 3 minutes; change it with `claudeCode.staleMs` in the config.
 
 Claude Code also exposes a signal Pi does not: it fires `Notification` when it blocks on a permission prompt. Those rows get the `blocked` status with kind `permission`, their own group and a `⏸` icon, and trigger a tmux message when the pane is not visible, since an agent waiting on you is the thing most worth surfacing.
 
@@ -209,7 +209,7 @@ Relatedly, `stale` now means "claimed to be working, then went silent". An agent
 
 ### Hook mapping
 
-| Overwatch state | Claude Code hook |
+| agentwatch state | Claude Code hook |
 | --- | --- |
 | session registered, `idle` | `SessionStart` |
 | `working` / `thinking` | `UserPromptSubmit` |
@@ -224,14 +224,14 @@ Relatedly, `stale` now means "claimed to be working, then went silent". An agent
 Codex hooks use the same event names and payloads as Claude Code, so Codex rows come from the same producer.
 
 ```bash
-pi-overwatch install-codex-hooks
+agentwatch install-codex-hooks
 ```
 
 This writes `~/.codex/hooks.json` (or `./.codex/hooks.json` with `--project`) and takes the same `--dry-run` and `--uninstall` flags. Codex asks you to review new hooks before it runs them, so restart Codex and approve them in `/hooks`. Hooks need Codex's `hooks` feature, which is on by default in current releases.
 
 Codex reports approval prompts through a dedicated `PermissionRequest` event, so blocked rows need no message matching. It also fires `Interrupt` when you stop a turn, which returns the row to `idle`.
 
-| Overwatch state | Codex hook |
+| agentwatch state | Codex hook |
 | --- | --- |
 | session registered, `idle` | `SessionStart` |
 | `working` / `thinking` | `UserPromptSubmit` |
@@ -246,17 +246,17 @@ The stale window defaults to 3 minutes, like Claude Code; change it with `codex.
 
 ## Configuration
 
-Overwatch reads config from:
+agentwatch reads config from:
 
 ```bash
-~/.pi/overwatch/config.json
+~/.local/state/agentwatch/config.json
 ```
 
 You can start from the example file:
 
 ```bash
-mkdir -p ~/.pi/overwatch
-cp /absolute/path/to/pi-overwatch/config.example.json ~/.pi/overwatch/config.json
+mkdir -p ~/.local/state/agentwatch
+cp /absolute/path/to/agentwatch/config.example.json ~/.local/state/agentwatch/config.json
 ```
 
 Example:
@@ -307,19 +307,19 @@ Supported values:
 ### Install the status row
 
 ```bash
-pi-overwatch install-tmux
+agentwatch install-tmux
 ```
 
 This writes `~/.config/tmux/overwatch.conf` from [`examples/tmux.conf`](examples/tmux.conf) and appends one marked `source-file` block to the end of your tmux config (`~/.tmux.conf`, or `~/.config/tmux/tmux.conf` if that is the one you use), so it loads after your theme and plugins. If tmux is running, it loads the row straight away.
 
-The generated file calls `node` and the installed script by absolute path. tmux runs `#()` without your shell profile, so `pi-overwatch` does not need to be on tmux's PATH. Re-run the command after moving or reinstalling Node to refresh those paths.
+The generated file calls `node` and the installed script by absolute path. tmux runs `#()` without your shell profile, so `agentwatch` does not need to be on tmux's PATH. Re-run the command after moving or reinstalling Node to refresh those paths.
 
 Flags:
 
 - `--dry-run` — print both files without writing
 - `--uninstall` — remove the block and the generated file
 - `--no-reload` — do not load it into a running tmux server
-- `--command CMD` — use `CMD` instead of the absolute paths, for example `--command pi-overwatch`
+- `--command CMD` — use `CMD` instead of the absolute paths, for example `--command agentwatch`
 
 The command is idempotent and backs up your tmux config to `*.overwatch-backup` before changing it. The row takes `status-format[1]` and sets the status area to two rows; the installer warns when your config already configures extra rows. Edit the generated file freely, but re-running the installer overwrites it.
 
@@ -331,15 +331,15 @@ Copy [`examples/tmux.conf`](examples/tmux.conf) to `~/.config/tmux/overwatch.con
 source-file ~/.config/tmux/overwatch.conf
 ```
 
-Reload with `tmux source-file ~/.tmux.conf`. The example preserves your main row (`status-format[0]`), sets the status area to two rows, and uses the second row for Overwatch. If you already have multiple status rows, adjust its index and row count before sourcing it. Keybindings and refresh-interval changes are commented out so the example does not override them unexpectedly. `pi-overwatch` must be on the tmux server's PATH. The example is also included in the npm package under `examples/`.
+Reload with `tmux source-file ~/.tmux.conf`. The example preserves your main row (`status-format[0]`), sets the status area to two rows, and uses the second row for agentwatch. If you already have multiple status rows, adjust its index and row count before sourcing it. Keybindings and refresh-interval changes are commented out so the example does not override them unexpectedly. `agentwatch` must be on the tmux server's PATH. The example is also included in the npm package under `examples/`.
 
 ### Status line
 
-`pi-overwatch statusline` prints a one-line, tmux-styled summary of all live sessions, meant for embedding in the tmux status bar:
+`agentwatch statusline` prints a one-line, tmux-styled summary of all live sessions, meant for embedding in the tmux status bar:
 
 ```tmux
 set -g status 2
-set -g status-format[1] "#[align=left] #(pi-overwatch statusline)"
+set -g status-format[1] "#[align=left] #(agentwatch statusline)"
 ```
 
 Flags:
@@ -357,11 +357,11 @@ The row uses a status-colored indicator, neutral session name, and muted activit
 
 #### Colors and light/dark themes
 
-The dashboard and statusline read `@powerkit_theme` on each refresh: `catppuccin` selects Latte/Mocha colors; `rose-pine` and unknown/unset families use Dawn/Moon. This keeps Overwatch aligned with its tmux host without a separate settings watcher. Catppuccin dark variants currently use Mocha colors.
+The dashboard and statusline read `@powerkit_theme` on each refresh: `catppuccin` selects Latte/Mocha colors; `rose-pine` and unknown/unset families use Dawn/Moon. This keeps agentwatch aligned with its tmux host without a separate settings watcher. Catppuccin dark variants currently use Mocha colors.
 
 With `auto` (the default), brightness is resolved in this order:
 
-1. `@pi_overwatch_theme` — `light` or `dark` pins brightness
+1. `@agentwatch_theme` — `light` or `dark` pins brightness
 2. `@powerkit_theme_variant` — `latte` and `dawn` map to light; other nonempty variants map to dark
 3. Legacy `~/.config/theme-mode`, then dark if absent
 
@@ -397,18 +397,28 @@ Names longer than 24 characters are cut at the end: `Make ML discovery agent-fri
 
 `statusline.identity` takes the same values as [`dashboard.identity`](#dashboardidentity) and defaults to it.
 
-Entries stay until their agent ends, like OSC 7501 records: `idle`, `done`, and `error` remain visible until the next prompt replaces them or the session shuts down. Set `PI_OVERWATCH_STATUS_TTL_MS` to also drop entries that have not changed for that long.
+Entries stay until their agent ends, like OSC 7501 records: `idle`, `done`, and `error` remain visible until the next prompt replaces them or the session shuts down. Set `AGENTWATCH_STATUS_TTL_MS` to also drop entries that have not changed for that long.
 
 When two agents resolve to the same label (for example two Pi sessions in one tmux session), the statusline disambiguates them with the tmux window name and pane index: `personal:api.2 · personal:blog.1`. Unique labels stay unsuffixed.
+
+### Session titles
+
+Task tooling such as Pax names tmux sessions like `pax-worker-<uuid>-g13`, and finds its workers by that name. agentwatch does not rename those sessions. It sets the `@pax-supervised-title` session option to the agent's conversation title instead. It only does this for sessions with a generated name. When several live agents share one of those sessions, it clears the option.
+
+To show the title in place of the session name, use this format wherever your status bar shows `#S`:
+
+```tmux
+#{?@pax-supervised-title,#{@pax-supervised-title},#S}
+```
 
 ### Dashboard keybindings
 
 ```tmux
 # floating pane (tmux >= 3.7, non-modal — keeps working underneath)
-bind o new-pane "pi-overwatch"
+bind o new-pane "agentwatch"
 
 # popup fallback (tmux >= 3.2, modal)
-bind O display-popup -E -w 85% -h 70% "pi-overwatch"
+bind O display-popup -E -w 85% -h 70% "agentwatch"
 ```
 
 ### Notifications
@@ -424,41 +434,77 @@ When running inside tmux, the extension shows a `display-message` on every attac
 
 ## State directory
 
-By default, Overwatch stores data in:
+By default, agentwatch stores data in:
 
 ```bash
-~/.pi/overwatch
+~/.local/state/agentwatch
 ```
 
 Structure:
 
 ```text
-~/.pi/overwatch/
+~/.local/state/agentwatch/
 ├── agents/
 │   └── <agent-id>.json
 ├── config.json
 └── events.jsonl
 ```
 
+If `~/.local/state/agentwatch` does not exist but the old `~/.pi/overwatch` does, agentwatch keeps using the old folder. To switch, stop your agents and move the folder:
+
+```bash
+mkdir -p ~/.local/state && mv ~/.pi/overwatch ~/.local/state/agentwatch
+```
+
 Override the root directory with:
 
 ```bash
-export PI_OVERWATCH_DIR=/some/other/path
+export AGENTWATCH_DIR=/some/other/path
 ```
 
 Other environment overrides:
 
 ```bash
-export PI_OVERWATCH_REFRESH_MS=1000
-export PI_OVERWATCH_STALE_MS=30000
+export AGENTWATCH_REFRESH_MS=1000
+export AGENTWATCH_STALE_MS=30000
 ```
+
+The old `PI_OVERWATCH_*` variables, the `@pi_overwatch_theme` tmux option and the `pi-overwatch` command still work.
+
+### State file format
+
+The state folder is the contract between writers and readers. Writers are the Pi extension and the Claude Code and Codex hooks. Readers are the dashboard, the statusline and tmux notifications. Any other tool can read these files, or write its own, to join in.
+
+Each agent writes `agents/<agent-id>.json` and replaces the whole file on every change:
+
+| Field | Meaning |
+| --- | --- |
+| `agentId` | Stable id; also the file name |
+| `source` | `pi`, `claude-code` or `codex`; missing means `pi` |
+| `pid`, `hostname` | Agent process; readers mark it `offline` when the pid is gone on this host |
+| `cwd`, `projectName` | Working folder and its last part |
+| `sessionName` | Name of the conversation: the Pi session name, the Claude Code title, or the Codex thread name. Hooks fall back to the first 8 characters of the session id |
+| `titleKind` | `custom` when the user named the conversation, `ai` when the harness generated the name |
+| `sessionFile` | Transcript path, if any |
+| `tmux` | `sessionName`, `windowIndex`, `windowName`, `paneIndex`, `paneId`, `panePath`, when running in tmux |
+| `status` | `idle`, `working`, `blocked`, `done`, `error` or `offline` (OSC 7501 states, plus `offline`) |
+| `phase` | `thinking`, `tool`, `waiting` or `queueing` |
+| `toolName` | Current tool while `phase` is `tool` |
+| `kind` | Why it is `blocked`: `permission`, `question` or `auth` |
+| `progress` | 0–100, optional |
+| `summary` | One line of the latest output |
+| `startedAt`, `finishedAt`, `updatedAt`, `lastHeartbeatAt` | ISO timestamps |
+| `staleMs` | Optional: how long without an update before a `working` agent reads as stale |
+| `queue` | `{ steering, followUp }` queued message counts |
+
+`events.jsonl` gets one JSON line per event (`agent_start`, `tool_start`, and so on) with `ts`, `type`, `source`, `agentId` and the agent's location.
 
 ## Pi command
 
 The Pi extension also registers:
 
 ```text
-/overwatch
+/agentwatch
 ```
 
 That command shows the current state file path for the active Pi instance.
@@ -466,18 +512,20 @@ That command shows the current state file path for the active Pi instance.
 ## Package structure
 
 ```text
-pi-overwatch/
+agentwatch/
 ├── bin/
+│   ├── agentwatch.js
 │   ├── install-tmux.js
-│   └── pi-overwatch.js
+│   └── pi-overwatch.js   # old command name
 ├── extensions/
-│   └── overwatch.ts
+│   └── agentwatch.ts
 ├── hooks/
 │   ├── agent-hook.js
 │   ├── claude-code.js
 │   ├── codex.js
 │   ├── install.js
 │   ├── program-status.js
+│   ├── state-dir.js
 │   └── tmux-effects.js
 ├── config.example.json
 ├── LICENSE
@@ -488,7 +536,7 @@ pi-overwatch/
 ## Notes
 
 - best results come from launching the agent inside the tmux pane you want associated with the row
-- Overwatch does not rename tmux sessions or take over your workspace
+- agentwatch does not rename tmux sessions or take over your workspace
 - it is intentionally minimal and focused on observability
 - Pi loads the extension directly from TypeScript
 - Claude Code and Codex drive state from hooks, so there is no process to keep running

@@ -1,4 +1,4 @@
-// Hook-driven producer for Overwatch, shared by Claude Code and Codex.
+// Hook-driven producer for agentwatch, shared by Claude Code and Codex.
 //
 // Pi writes agent state from a long-lived extension; Claude Code and Codex
 // have no such process, so state is driven by hooks instead. Each hook is its
@@ -15,6 +15,8 @@ import { execFileSync } from "node:child_process";
 import { findAgentProcess } from "./agent-process.js";
 import { emitProgramStatus } from "./program-status.js";
 import { spawnTmuxEffects } from "./tmux-effects.js";
+import { stateDir } from "./state-dir.js";
+import { tmuxTitleFor } from "./names.js";
 
 const MAX_EVENTS_FILE_BYTES = 5 * 1024 * 1024;
 const TRIM_EVENTS_TO_LAST_LINES = 2_000;
@@ -24,7 +26,7 @@ const TRIM_EVENTS_TO_LAST_LINES = 2_000;
 const DEFAULT_STALE_MS = 180_000;
 
 function getRootDir() {
-  return process.env.PI_OVERWATCH_DIR || path.join(os.homedir(), ".pi", "overwatch");
+  return stateDir();
 }
 
 function nowIso() {
@@ -207,6 +209,37 @@ function resolveTmux(existing, event) {
 
 // Same cadence as the tmux lookup: walk the process tree when a session starts
 // or a prompt arrives, reuse the result for tool hooks.
+// Titles change at most once per turn, so only read them around a turn.
+const TITLE_EVENTS = new Set(["SessionStart", "UserPromptSubmit", "Stop"]);
+
+// Last lines of a file that can be many MB; the first, partial line is dropped.
+export function readTailLines(filePath, maxBytes = 256 * 1024) {
+  let fd;
+  try {
+    fd = fs.openSync(filePath, "r");
+    const size = fs.fstatSync(fd).size;
+    const start = Math.max(0, size - maxBytes);
+    const buffer = Buffer.alloc(size - start);
+    fs.readSync(fd, buffer, 0, buffer.length, start);
+    const lines = buffer.toString("utf8").split("\n");
+    return start > 0 ? lines.slice(1) : lines;
+  } catch {
+    return [];
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+}
+
+// A title the user set (kind "custom") wins over a generated one, even when
+// only the generated one is in the part of the transcript we read.
+function resolveTitle(existing, payload, event, harness) {
+  const kept = existing?.titleKind ? { name: existing.sessionName, kind: existing.titleKind } : undefined;
+  if (!TITLE_EVENTS.has(event) || !harness.readTitle) return kept;
+  const found = harness.readTitle(payload);
+  if (!found?.name || (found.kind !== "custom" && kept?.kind === "custom")) return kept;
+  return { name: sanitizeSummary(found.name, 120), kind: found.kind };
+}
+
 function resolveAgentProcess(existing, event, harness) {
   if (existing && !TMUX_LOOKUP_EVENTS.has(event)) return { pid: existing.pid, tty: existing.tty };
   return findAgentProcess(process.ppid, harness.processNames);
@@ -227,6 +260,7 @@ function loadOrInit(rootDir, payload, event, harness) {
   const cwd = payload.cwd || existing?.cwd || process.cwd();
   const tmux = resolveTmux(existing, event);
   const agentProcess = resolveAgentProcess(existing, event, harness);
+  const title = resolveTitle(existing, payload, event, harness);
 
   // Before statuses followed OSC 7501, blocked was a flag on `working`.
   if (existing?.blocked) {
@@ -255,7 +289,8 @@ function loadOrInit(rootDir, payload, event, harness) {
       projectName: path.basename(cwd),
       cwd,
       sessionFile: payload.transcript_path || state.sessionFile,
-      sessionName: payload.session_id ? String(payload.session_id).slice(0, 8) : state.sessionName,
+      sessionName: title?.name || (payload.session_id ? String(payload.session_id).slice(0, 8) : state.sessionName),
+      titleKind: title?.kind,
       tmux,
       tty: agentProcess.tty,
       updatedAt: timestamp,
@@ -333,6 +368,10 @@ export function runAgentHook(harness, argv = []) {
   const config = readConfig(rootDir, harness);
   const { filePath, state } = loadOrInit(rootDir, payload, event, harness);
   state.staleMs = config.staleMs;
+
+  // Same cadence as reading the title; setting it again also covers a restarted tmux server.
+  const sessionTitle = TITLE_EVENTS.has(event) ? tmuxTitleFor(state, path.join(rootDir, "agents")) : undefined;
+  if (sessionTitle) spawnTmuxEffects({ sessionTitle, refresh: true });
 
   // Report to the terminal first, so a freshly resolved tty is cached too.
   const save = () => {

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
-const cli = new URL('./pi-overwatch.js', import.meta.url).pathname;
+const cli = new URL('./agentwatch.js', import.meta.url).pathname;
 
 test('install-tmux adds one source block, survives re-runs, and uninstalls cleanly', () => {
   const root = mkdtempSync(join(tmpdir(), 'overwatch-tmux-'));
@@ -26,14 +26,14 @@ test('install-tmux adds one source block, survives re-runs, and uninstalls clean
     assert.equal(readFileSync(join(root, '.tmux.conf.overwatch-backup'), 'utf8'), original);
 
     const generated = readFileSync(join(root, '.config/tmux/overwatch.conf'), 'utf8');
-    assert.match(generated, /#\('[^']*node' '[^']*pi-overwatch\.js' statusline\)/);
-    assert.doesNotMatch(generated, /#\(pi-overwatch /);
+    assert.match(generated, /#\('[^']*node' '[^']*agentwatch\.js' statusline\)/);
+    assert.doesNotMatch(generated, /#\(agentwatch /);
 
     assert.match(run(), /already sources it/);
     assert.equal(readFileSync(join(root, '.tmux.conf'), 'utf8'), conf);
 
-    assert.match(run('--command', 'pi-overwatch'), /Wrote/);
-    assert.match(readFileSync(join(root, '.config/tmux/overwatch.conf'), 'utf8'), /#\(pi-overwatch statusline\)/);
+    assert.match(run('--command', 'agentwatch'), /Wrote/);
+    assert.match(readFileSync(join(root, '.config/tmux/overwatch.conf'), 'utf8'), /#\(agentwatch statusline\)/);
 
     run('--uninstall');
     assert.equal(readFileSync(join(root, '.tmux.conf'), 'utf8'), original);
