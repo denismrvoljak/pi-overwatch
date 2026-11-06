@@ -10,11 +10,13 @@
 pi install npm:agentwatch
 ```
 
-Minimal observability for your coding harnesses.
+Bring all your agent activity into one place.
+
+agentwatch is a local status board for your coding agents. Each agent writes its status to a small JSON file on your machine. The dashboard, the tmux status line, and tmux notifications read those files. Nothing leaves your machine.
 
 I built `agentwatch` because I wanted a simple way to see what my coding sessions were doing while multitasking.
 
-I use tmux with a "one session per project" setup, so agentwatch uses the tmux session name as the main target label when the agent is running inside tmux. If you're not using tmux, it falls back to the directory where you launched it.
+Each session shows the conversation title that the agent sets, like "Fix checkout redirect". Without a title, agentwatch uses the tmux session name. Outside tmux, it uses the directory where you launched the agent. See [Session titles](#session-titles).
 
 Supported harnesses:
 
@@ -43,6 +45,7 @@ Watch the demo video on YouTube:
 ## What it shows
 
 - current session status at a glance, whichever harness it is
+- conversation titles as session labels, also shown as tmux session names
 - tmux-session-aware target labels
 - cwd fallback when tmux is not available
 - current phase or tool activity
