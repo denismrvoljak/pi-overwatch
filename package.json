@@ -1,6 +1,6 @@
 {
   "name": "agentwatch",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Bring all your agent activity into one place. A local status board for Pi, Claude Code, and Codex: TUI dashboard, tmux status line, and session titles.",
   "type": "module",
   "keywords": [
