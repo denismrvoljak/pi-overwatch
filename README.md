@@ -7,7 +7,7 @@
 </picture>
 
 ```bash
-pi install npm:agentwatch
+pi install npm:@denismrvoljak/agentwatch
 ```
 
 Bring all your agent activity into one place.
@@ -62,7 +62,7 @@ https://github.com/user-attachments/assets/fda9077b-3a37-4d1a-8adc-827d17dc7f53
 ### From npm
 
 ```bash
-pi install npm:agentwatch
+pi install npm:@denismrvoljak/agentwatch
 ```
 
 ### From GitHub
@@ -74,13 +74,13 @@ pi install https://github.com/denismrvoljak/agentwatch
 ### Project-local install
 
 ```bash
-pi install -l npm:agentwatch
+pi install -l npm:@denismrvoljak/agentwatch
 ```
 
 ### One-off test
 
 ```bash
-pi -e npm:agentwatch
+pi -e npm:@denismrvoljak/agentwatch
 ```
 
 ## Run agentwatch

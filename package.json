@@ -1,6 +1,6 @@
 {
-  "name": "agentwatch",
-  "version": "0.3.0",
+  "name": "@denismrvoljak/agentwatch",
+  "version": "0.3.1",
   "description": "Bring all your agent activity into one place. A local status board for Pi, Claude Code, and Codex: TUI dashboard, tmux status line, and session titles.",
   "type": "module",
   "keywords": [
@@ -16,8 +16,8 @@
     "codex"
   ],
   "bin": {
-    "agentwatch": "./bin/agentwatch.js",
-    "pi-overwatch": "./bin/pi-overwatch.js"
+    "agentwatch": "bin/agentwatch.js",
+    "pi-overwatch": "bin/pi-overwatch.js"
   },
   "scripts": {
     "test": "node --test bin/*.test.js hooks/*.test.js"
